@@ -9,6 +9,7 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
+import com.ghana.gwire.service.persist.ProjectStore;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
 import com.ghana.gwire.ui.menu.AppMenuBar;
@@ -26,9 +27,13 @@ import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.nio.file.Path;
 
 /**
  * Primary application chrome: library, floor-plan, properties, calc, BOQ, status.
@@ -48,8 +53,11 @@ public class MainWindow {
     private final BoqPanel boqPanel;
     private final AppMenuBar menuBar;
     private final CalcEngine calcEngine = new CalcEngine();
+    private final ProjectStore projectStore = new ProjectStore();
 
     private Project project;
+    private Path projectPath;
+    private boolean dirty;
 
     public MainWindow(Stage stage, ThemeManager themeManager) {
         this.stage = stage;
@@ -65,12 +73,15 @@ public class MainWindow {
         workspace.setOwnerWindow(stage);
         workspace.setStatusSink(statusBar::setMessage);
         workspace.setSelectionListener(this::refreshSelection);
+        workspace.setModelChangeListener(this::onModelChanged);
 
-        propertiesPanel.setOnProjectChanged(this::refreshTitleAndStatus);
+        propertiesPanel.setOnProjectChanged(() -> {
+            markDirty();
+            refreshTitleAndStatus();
+        });
         propertiesPanel.setOnGeometryChanged(() -> {
             workspace.getCanvas().redraw();
-            refreshSelection();
-            boqPanel.refresh();
+            onModelChanged();
         });
 
         symbolLibraryPanel.setStatusSink(statusBar::setMessage);
@@ -112,7 +123,7 @@ public class MainWindow {
             // library optional at UI build time
         }
         statusBar.setMessage(
-                "Phase 5: Design → AI Generate Design · Tools → Recalculate ("
+                "Phase 6: File → Save/Open (.gwire) · AI design · Tools → Recalculate ("
                         + count + " catalogue items)."
         );
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
@@ -143,6 +154,9 @@ public class MainWindow {
     }
 
     public void newProject() {
+        if (!confirmDiscardIfDirty()) {
+            return;
+        }
         TextInputDialog dialog = new TextInputDialog("New residence");
         dialog.initOwner(stage);
         dialog.setTitle("New project");
@@ -153,6 +167,8 @@ public class MainWindow {
 
     private void createProject(String name, boolean announce) {
         project = new Project(name);
+        projectPath = null;
+        dirty = false;
         workspace.bindProject(project);
         propertiesPanel.setProject(project);
         boqPanel.setProject(project);
@@ -165,20 +181,142 @@ public class MainWindow {
     }
 
     public void openProject() {
-        statusBar.setMessage("Open project file — full project I/O arrives with persistence (Phase 6).");
-        Alert info = new Alert(Alert.AlertType.INFORMATION);
-        info.initOwner(stage);
-        info.setTitle("Open project");
-        info.setHeaderText("Not yet available");
-        info.setContentText(
-                "Phase 4 supports calculation and standards checks.\n"
-                        + "Saving/loading .gwire project files is planned with the persistence layer."
-        );
-        info.showAndWait();
+        if (!confirmDiscardIfDirty()) {
+            return;
+        }
+        FileChooser chooser = projectChooser("Open GhanaWire project");
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) {
+            return;
+        }
+        try {
+            Project loaded = projectStore.load(file.toPath());
+            project = loaded;
+            projectPath = file.toPath();
+            dirty = false;
+            workspace.bindProject(project);
+            propertiesPanel.setProject(project);
+            boqPanel.setProject(project);
+            calcResultsPanel.clear();
+            workspace.getCanvas().fitToWindow();
+            refreshTitleAndStatus();
+            refreshSelection();
+            statusBar.setMessage("Opened " + file.getName()
+                    + " · " + project.floorPlan().rooms().size() + " room(s), "
+                    + project.floorPlan().devices().size() + " device(s)");
+        } catch (Exception ex) {
+            log.error("Open failed", ex);
+            Alert err = new Alert(Alert.AlertType.ERROR);
+            err.initOwner(stage);
+            err.setTitle("Open project");
+            err.setHeaderText("Could not open project");
+            err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            err.showAndWait();
+        }
     }
 
     public void saveProject() {
-        statusBar.setMessage("Save project — file format arrives with persistence (Phase 6).");
+        if (project == null) {
+            statusBar.setMessage("No project to save.");
+            return;
+        }
+        if (projectPath == null) {
+            saveProjectAs();
+            return;
+        }
+        writeProjectTo(projectPath);
+    }
+
+    public void saveProjectAs() {
+        if (project == null) {
+            statusBar.setMessage("No project to save.");
+            return;
+        }
+        FileChooser chooser = projectChooser("Save GhanaWire project");
+        if (projectPath != null) {
+            chooser.setInitialDirectory(projectPath.getParent() == null
+                    ? null : projectPath.getParent().toFile());
+            chooser.setInitialFileName(projectPath.getFileName().toString());
+        } else {
+            chooser.setInitialFileName(sanitizeFileName(project.name()) + ".gwire");
+        }
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
+            return;
+        }
+        Path path = file.toPath();
+        if (!path.getFileName().toString().toLowerCase().endsWith(".gwire")) {
+            path = path.resolveSibling(path.getFileName().toString() + ".gwire");
+        }
+        writeProjectTo(path);
+    }
+
+    private void writeProjectTo(Path path) {
+        try {
+            projectStore.save(project, path);
+            projectPath = path;
+            dirty = false;
+            refreshTitleAndStatus();
+            statusBar.setMessage("Saved " + path.getFileName());
+        } catch (Exception ex) {
+            log.error("Save failed", ex);
+            Alert err = new Alert(Alert.AlertType.ERROR);
+            err.initOwner(stage);
+            err.setTitle("Save project");
+            err.setHeaderText("Could not save project");
+            err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            err.showAndWait();
+        }
+    }
+
+    private FileChooser projectChooser(String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("GhanaWire project (*.gwire)", "*.gwire"),
+                new FileChooser.ExtensionFilter("All files", "*.*")
+        );
+        return chooser;
+    }
+
+    private boolean confirmDiscardIfDirty() {
+        if (!dirty) {
+            return true;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.initOwner(stage);
+        confirm.setTitle("Unsaved changes");
+        confirm.setHeaderText("Project has unsaved changes");
+        confirm.setContentText("Discard changes and continue?");
+        confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+        var choice = confirm.showAndWait();
+        return choice.isPresent() && choice.get() == ButtonType.YES;
+    }
+
+    private void markDirty() {
+        dirty = true;
+        if (project != null) {
+            project.touch();
+        }
+        refreshTitleAndStatus();
+    }
+
+    private void onModelChanged() {
+        markDirty();
+        boqPanel.refresh();
+        // Invalidate stale calc report when geometry/devices change
+        if (project != null && project.lastReport() != null) {
+            project.setLastReport(null);
+            calcResultsPanel.clear();
+        }
+        refreshTitleAndStatus();
+    }
+
+    private static String sanitizeFileName(String name) {
+        if (name == null || name.isBlank()) {
+            return "project";
+        }
+        return name.replaceAll("[^a-zA-Z0-9._-]+", "_");
     }
 
     public void importFloorPlan() {
@@ -498,13 +636,8 @@ public class MainWindow {
             workspace.getHistory().push(project.floorPlan());
             int n = ai.apply(project, plan, clear);
             workspace.getCanvas().redraw();
-            boqPanel.refresh();
-            if (project.lastReport() != null) {
-                // stale after layout change — clear so user re-runs calc
-                project.setLastReport(null);
-                calcResultsPanel.clear();
-            }
-            refreshTitleAndStatus();
+            onModelChanged();
+            refreshSelection();
             statusBar.setMessage(String.format(
                     "AI design applied: %d device(s) · source=%s · %s · Ctrl+Z to undo",
                     n, plan.source(), plan.providerDetail()
@@ -573,20 +706,20 @@ public class MainWindow {
 
     public void undo() {
         workspace.getCanvas().undo();
-        boqPanel.refresh();
-        refreshTitleAndStatus();
+        onModelChanged();
+        refreshSelection();
     }
 
     public void redo() {
         workspace.getCanvas().redo();
-        boqPanel.refresh();
-        refreshTitleAndStatus();
+        onModelChanged();
+        refreshSelection();
     }
 
     public void deleteSelection() {
         workspace.getCanvas().deleteSelection();
-        boqPanel.refresh();
-        refreshTitleAndStatus();
+        onModelChanged();
+        refreshSelection();
     }
 
     public void zoomIn() {
@@ -647,7 +780,9 @@ public class MainWindow {
             statusBar.setSecondary("No project");
             return;
         }
-        stage.setTitle(GWireApp.APP_NAME + " — " + project.name());
+        String dirtyMark = dirty ? " *" : "";
+        String pathHint = projectPath == null ? "" : " — " + projectPath.getFileName();
+        stage.setTitle(GWireApp.APP_NAME + " — " + project.name() + pathHint + dirtyMark);
         String secondary = "L.I. 2008 · " + project.supplySummary()
                 + " · walls " + project.floorPlan().walls().size()
                 + " · rooms " + project.floorPlan().rooms().size()
@@ -660,6 +795,8 @@ public class MainWindow {
                     report.totalDesignCurrentA(),
                     report.maxVoltageDropPercent()
             );
+        } else if (dirty) {
+            secondary += " · unsaved";
         }
         statusBar.setSecondary(secondary);
     }

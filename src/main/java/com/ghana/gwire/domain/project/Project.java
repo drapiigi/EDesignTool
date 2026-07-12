@@ -30,6 +30,18 @@ public final class Project {
         this.floorPlan = new FloorPlan();
     }
 
+    /**
+     * Reconstruct a project from persistence (preserves id and timestamps).
+     */
+    public Project(String id, String name, Instant createdAt, Instant modifiedAt) {
+        this.id = id == null || id.isBlank() ? UUID.randomUUID().toString() : id;
+        this.name = name == null || name.isBlank() ? "Untitled project" : name;
+        this.createdAt = createdAt == null ? Instant.now() : createdAt;
+        this.modifiedAt = modifiedAt == null ? this.createdAt : modifiedAt;
+        this.settings = new ProjectSettings();
+        this.floorPlan = new FloorPlan();
+    }
+
     public String id() {
         return id;
     }

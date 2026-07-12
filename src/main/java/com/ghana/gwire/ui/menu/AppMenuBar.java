@@ -24,10 +24,11 @@ public class AppMenuBar {
         MenuItem newItem = item("_New Project", KeyCode.N, true, window::newProject);
         MenuItem openItem = item("_Open…", KeyCode.O, true, window::openProject);
         MenuItem saveItem = item("_Save", KeyCode.S, true, window::saveProject);
+        MenuItem saveAsItem = item("Save _As…", null, false, window::saveProjectAs);
         MenuItem importItem = item("_Import Floor Plan…", KeyCode.I, true, window::importFloorPlan);
         MenuItem exitItem = item("E_xit", KeyCode.Q, true, window::quit);
         file.getItems().addAll(
-                newItem, openItem, saveItem,
+                newItem, openItem, saveItem, saveAsItem,
                 new SeparatorMenuItem(),
                 importItem,
                 new SeparatorMenuItem(),

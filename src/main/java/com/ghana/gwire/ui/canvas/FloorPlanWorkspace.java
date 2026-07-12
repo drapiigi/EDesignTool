@@ -35,6 +35,8 @@ public class FloorPlanWorkspace {
     };
     private Runnable selectionListener = () -> {
     };
+    private Runnable modelChangeListener = () -> {
+    };
     private Window ownerWindow;
 
     public FloorPlanWorkspace() {
@@ -92,7 +94,16 @@ public class FloorPlanWorkspace {
     public void setSelectionListener(Runnable selectionListener) {
         this.selectionListener = selectionListener == null ? () -> {
         } : selectionListener;
-        canvas.setSelectionListener(this.selectionListener);
+        canvas.setSelectionListener(() -> {
+            this.selectionListener.run();
+            // Device moves / edits fire selection updates — treat as model changes for live BOQ
+            modelChangeListener.run();
+        });
+    }
+
+    public void setModelChangeListener(Runnable modelChangeListener) {
+        this.modelChangeListener = modelChangeListener == null ? () -> {
+        } : modelChangeListener;
     }
 
     public void bindProject(Project project) {
@@ -102,8 +113,32 @@ public class FloorPlanWorkspace {
             canvas.clearRasterCache();
         } else {
             canvas.setFloorPlan(project.floorPlan());
+            reloadBackgroundRaster();
         }
         statusSink.accept("Project: " + (project == null ? "(none)" : project.name()));
+    }
+
+    /**
+     * Re-loads background image bytes into the canvas cache from the project path.
+     */
+    public void reloadBackgroundRaster() {
+        if (project == null || project.floorPlan().background() == null) {
+            return;
+        }
+        BackgroundImage bg = project.floorPlan().background();
+        try {
+            java.nio.file.Path path = java.nio.file.Path.of(bg.sourcePath());
+            if (!java.nio.file.Files.isRegularFile(path)) {
+                statusSink.accept("Background image missing on disk: " + bg.sourceLabel());
+                return;
+            }
+            ImportedRaster raster = importService.importFile(path);
+            canvas.registerRaster(raster.sourcePath(), raster.image());
+            canvas.redraw();
+        } catch (Exception ex) {
+            log.warn("Could not reload background raster: {}", ex.getMessage());
+            statusSink.accept("Could not load background: " + ex.getMessage());
+        }
     }
 
     public void setTool(DrawTool tool) {
@@ -143,6 +178,7 @@ public class FloorPlanWorkspace {
             canvas.registerRaster(raster.sourcePath(), raster.image());
             canvas.fitToWindow();
             canvas.redraw();
+            modelChangeListener.run();
             statusSink.accept("Imported " + raster.label()
                     + " · scale ~" + String.format("%.1f", raster.suggestedMmPerPixel()) + " mm/px");
         } catch (Exception ex) {
@@ -160,6 +196,7 @@ public class FloorPlanWorkspace {
         project.floorPlan().clearBackground();
         project.touch();
         canvas.redraw();
+        modelChangeListener.run();
         statusSink.accept("Background cleared");
     }
 
