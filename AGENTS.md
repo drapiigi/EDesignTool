@@ -58,7 +58,7 @@
 | 5 | AI generation integration | **Done** (rules + optional LLM + co-pilot + vision) |
 | 6 | Project save/load + live model updates | **Done** |
 | 7 | PDF export & reporting | **Done** |
-| 8 | Packaging, polish, sample 3-bed house, docs | Planned |
+| 8 | Packaging, polish, sample 3-bed house, docs | **Done** |
 
 ---
 
@@ -177,9 +177,16 @@
 - Unit test loads generated PDF and checks page count
 - `BoqExcelExportService` (Apache POI): BOQ-only `.xlsx` export — File → Export BOQ (Excel)
 
+### Done (Phase 8)
+
+- Sample 3-bed Ghana bungalow (`SampleProjectFactory`, `samples/ghana-3bed-house.gwire`)
+- Help → Open Sample 3-Bed House
+- Packaging scripts: `scripts/package-linux.sh`, `scripts/package-windows.ps1`
+- Docs: `docs/PACKAGING.md`, README packaging section
+
 ### Open tasks
 
-- [ ] Phase 8: jpackage installers, sample project, full docs
+- (Future) SLD CAD export, multi-storey, full wiring routes, installer code-signing
 
 ---
 

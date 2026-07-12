@@ -9,6 +9,7 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
+import com.ghana.gwire.samples.SampleProjectFactory;
 import com.ghana.gwire.service.export.BoqExcelExportService;
 import com.ghana.gwire.service.export.PdfExportService;
 import com.ghana.gwire.service.persist.ProjectStore;
@@ -35,7 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Primary application chrome: library, floor-plan, properties, calc, BOQ, status.
@@ -127,7 +131,7 @@ public class MainWindow {
             // library optional at UI build time
         }
         statusBar.setMessage(
-                "Phase 6: File → Save/Open (.gwire) · AI design · Tools → Recalculate ("
+                "Ready · Help → Open Sample 3-Bed House · File → Export PDF/Excel ("
                         + count + " catalogue items)."
         );
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
@@ -862,6 +866,63 @@ public class MainWindow {
         workspace.getCanvas().fitToWindow();
     }
 
+    /**
+     * Loads the bundled sample three-bedroom Ghana bungalow project.
+     */
+    public void openSampleThreeBedHouse() {
+        if (!confirmDiscardIfDirty()) {
+            return;
+        }
+        try {
+            Project loaded;
+            try (InputStream in = getClass().getResourceAsStream(SampleProjectFactory.RESOURCE_PATH)) {
+                if (in != null) {
+                    Path tmp = Files.createTempFile("gwire-sample-", ".gwire");
+                    Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+                    loaded = projectStore.load(tmp);
+                    Files.deleteIfExists(tmp);
+                } else {
+                    loaded = SampleProjectFactory.createThreeBedBungalow();
+                }
+            }
+            project = loaded;
+            projectPath = null;
+            dirty = false;
+            workspace.bindProject(project);
+            propertiesPanel.setProject(project);
+            boqPanel.setProject(project);
+            calcResultsPanel.clear();
+            workspace.getCanvas().fitToWindow();
+            refreshTitleAndStatus();
+            refreshSelection();
+            statusBar.setMessage("Opened sample: " + project.name()
+                    + " · " + project.floorPlan().rooms().size() + " rooms, "
+                    + project.floorPlan().devices().size() + " devices");
+        } catch (Exception ex) {
+            log.error("Sample open failed", ex);
+            try {
+                project = SampleProjectFactory.createThreeBedBungalow();
+                projectPath = null;
+                dirty = false;
+                workspace.bindProject(project);
+                propertiesPanel.setProject(project);
+                boqPanel.setProject(project);
+                calcResultsPanel.clear();
+                workspace.getCanvas().fitToWindow();
+                refreshTitleAndStatus();
+                refreshSelection();
+                statusBar.setMessage("Opened sample (in-memory): " + project.name());
+            } catch (Exception ex2) {
+                Alert err = new Alert(Alert.AlertType.ERROR);
+                err.initOwner(stage);
+                err.setTitle("Sample project");
+                err.setHeaderText("Could not open sample");
+                err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+                err.showAndWait();
+            }
+        }
+    }
+
     public void showAbout() {
         int n = LibraryBootstrap.get() == null ? 0 : LibraryBootstrap.get().count();
         Alert about = new Alert(Alert.AlertType.INFORMATION);
@@ -876,10 +937,13 @@ public class MainWindow {
                 Targets Ghana Electrical Wiring Regulations 2011 (L.I. 2008),
                 Energy Commission guidelines, and Ghana Standards.
 
-                Stack: Java 21+, JavaFX 23+, Maven, H2, PDFBox
+                Stack: Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI
 
-                Phase 5: AI design (rules + optional LLM), loads, standards checks.
+                Phases 1-8 complete: shell, floor plan, library, calc, AI/vision,
+                save/load, PDF/Excel export, sample project and packaging scripts.
+
                 Catalogue: %d items. AI: %s
+                Help → Open Sample 3-Bed House
                 """.formatted(
                         GWireApp.APP_VERSION,
                         n,

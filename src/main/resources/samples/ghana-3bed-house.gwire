@@ -1,0 +1,810 @@
+{
+  "formatVersion" : "1.0",
+  "app" : "GhanaWire AI",
+  "id" : "9214b6ec-54ca-4355-a05e-5e1ef77c6321",
+  "name" : "Sample 3-Bed Ghana Bungalow",
+  "createdAt" : "2026-07-12T21:10:34.054739623Z",
+  "modifiedAt" : "2026-07-12T21:10:34.062804268Z",
+  "settings" : {
+    "houseType" : "3-bedroom bungalow (Ghana residential)",
+    "supplyType" : "SINGLE_PHASE_230V",
+    "nominalVoltageV" : 230.0,
+    "frequencyHz" : 50.0
+  },
+  "floorPlan" : {
+    "gridMm" : 500.0,
+    "snapToGrid" : true,
+    "walls" : [ {
+      "id" : "1ec97974-831d-4ac6-9899-f825ed6d6a02",
+      "x1" : 0.0,
+      "y1" : 0.0,
+      "x2" : 4500.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "6b8ae3b2-3006-42c3-98e8-8f8e58f1f3a5",
+      "x1" : 4500.0,
+      "y1" : 0.0,
+      "x2" : 4500.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "065b4b0a-c9fc-4229-9fcb-3340c1f35854",
+      "x1" : 4500.0,
+      "y1" : 4000.0,
+      "x2" : 0.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "b95f7d5a-4ba5-4bf6-aaf2-6229a5d7a1f7",
+      "x1" : 0.0,
+      "y1" : 4000.0,
+      "x2" : 0.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "e4a4cd77-df91-485b-a665-7a3a264a163f",
+      "x1" : 4500.0,
+      "y1" : 0.0,
+      "x2" : 7500.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "3e167c97-6f60-443b-9fbc-530ce1c24cca",
+      "x1" : 7500.0,
+      "y1" : 0.0,
+      "x2" : 7500.0,
+      "y2" : 3000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "88c2d34c-ffdd-4a32-b693-94ffb1c7e411",
+      "x1" : 7500.0,
+      "y1" : 3000.0,
+      "x2" : 4500.0,
+      "y2" : 3000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "9d3993f6-57c7-45c5-8fa7-86f4f594fd04",
+      "x1" : 4500.0,
+      "y1" : 3000.0,
+      "x2" : 4500.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "3591181d-af76-4a4e-b608-17d4dc52126d",
+      "x1" : 7500.0,
+      "y1" : 0.0,
+      "x2" : 11000.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "dee6deda-f3ef-44a0-9154-e3890a7b331e",
+      "x1" : 11000.0,
+      "y1" : 0.0,
+      "x2" : 11000.0,
+      "y2" : 3000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "123a3675-bcb4-4808-acc8-858e12451e40",
+      "x1" : 11000.0,
+      "y1" : 3000.0,
+      "x2" : 7500.0,
+      "y2" : 3000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "02231628-55ab-4539-a650-f91726fd5346",
+      "x1" : 7500.0,
+      "y1" : 3000.0,
+      "x2" : 7500.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "20148cf9-0c7e-44b6-b3ec-cc31d63f36e9",
+      "x1" : 0.0,
+      "y1" : 4000.0,
+      "x2" : 4000.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "0256568d-f9a2-45ea-af3c-3e27ca94478b",
+      "x1" : 4000.0,
+      "y1" : 4000.0,
+      "x2" : 4000.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "f89dc603-6bed-4d38-a40b-58615b44cca9",
+      "x1" : 4000.0,
+      "y1" : 7500.0,
+      "x2" : 0.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "a067b444-9e81-4271-9371-30963aba998b",
+      "x1" : 0.0,
+      "y1" : 7500.0,
+      "x2" : 0.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "d4d2a837-2906-49a7-b4c1-418bb51d592e",
+      "x1" : 4000.0,
+      "y1" : 4000.0,
+      "x2" : 7500.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "f864cadc-df0d-4705-9966-251fd4439bf3",
+      "x1" : 7500.0,
+      "y1" : 4000.0,
+      "x2" : 7500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "e3a0120a-86e0-46a8-ad23-03f2056d6db0",
+      "x1" : 7500.0,
+      "y1" : 7500.0,
+      "x2" : 4000.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "e2772d75-f4a2-4dd9-9190-d70bba559f03",
+      "x1" : 4000.0,
+      "y1" : 7500.0,
+      "x2" : 4000.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "66bbcef1-12b3-4ca6-8028-4cfe66ca3349",
+      "x1" : 7500.0,
+      "y1" : 4000.0,
+      "x2" : 11000.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "62443f0c-53fc-4253-87ee-d38507e4a9d6",
+      "x1" : 11000.0,
+      "y1" : 4000.0,
+      "x2" : 11000.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "3286ca98-3d91-4bcc-8a14-9ec6276b0e9d",
+      "x1" : 11000.0,
+      "y1" : 7500.0,
+      "x2" : 7500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "3e0e74a3-d401-4071-9811-5f9ad4411df0",
+      "x1" : 7500.0,
+      "y1" : 7500.0,
+      "x2" : 7500.0,
+      "y2" : 4000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "89188a23-8c7b-4621-b495-37c7541c8adf",
+      "x1" : 0.0,
+      "y1" : 7500.0,
+      "x2" : 2500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "7ede79bc-10a8-4af9-96c7-664d4cfb173a",
+      "x1" : 2500.0,
+      "y1" : 7500.0,
+      "x2" : 2500.0,
+      "y2" : 10000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "9a9cbe33-32c8-4498-8aac-2cf98f94dce7",
+      "x1" : 2500.0,
+      "y1" : 10000.0,
+      "x2" : 0.0,
+      "y2" : 10000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "9d16a801-09fa-4a22-8a1c-972be147fcd9",
+      "x1" : 0.0,
+      "y1" : 10000.0,
+      "x2" : 0.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "22d0b6b9-ecc9-4d5b-bb46-488ea5c9de54",
+      "x1" : 2500.0,
+      "y1" : 7500.0,
+      "x2" : 4500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "3d2700ef-f20a-42ab-8290-b92139d040b7",
+      "x1" : 4500.0,
+      "y1" : 7500.0,
+      "x2" : 4500.0,
+      "y2" : 10000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "01aeb208-2795-4989-865b-79d983ff29d3",
+      "x1" : 4500.0,
+      "y1" : 10000.0,
+      "x2" : 2500.0,
+      "y2" : 10000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "921d474c-f69e-4273-bd1e-203b42e2d4e6",
+      "x1" : 2500.0,
+      "y1" : 10000.0,
+      "x2" : 2500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "f34f595d-9cf8-453a-a9a6-f5addbb8b42b",
+      "x1" : 4500.0,
+      "y1" : 7500.0,
+      "x2" : 11000.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "d71847ea-52ba-4094-ab7e-ac540c581615",
+      "x1" : 11000.0,
+      "y1" : 7500.0,
+      "x2" : 11000.0,
+      "y2" : 9500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "295fcf71-d675-4366-9fbe-4b0e1fb6828a",
+      "x1" : 11000.0,
+      "y1" : 9500.0,
+      "x2" : 4500.0,
+      "y2" : 9500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "4350158c-acd5-41b6-9694-4678458940bd",
+      "x1" : 4500.0,
+      "y1" : 9500.0,
+      "x2" : 4500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "237e3561-2261-40ef-b4a2-2759cd42ceb9",
+      "x1" : 0.0,
+      "y1" : 0.0,
+      "x2" : 4500.0,
+      "y2" : 0.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "d04973f6-3bf5-4641-bd56-fb073158bf02",
+      "x1" : 7500.0,
+      "y1" : 3000.0,
+      "x2" : 11000.0,
+      "y2" : 3000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "0c358188-13bb-4a9f-b84b-b8164ec33867",
+      "x1" : 0.0,
+      "y1" : 7500.0,
+      "x2" : 4000.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "057d6e5c-8770-45bd-a627-02c2dfa07fb1",
+      "x1" : 4000.0,
+      "y1" : 7500.0,
+      "x2" : 7500.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "7d1a280c-29cc-48cc-9048-f3b60830a694",
+      "x1" : 7500.0,
+      "y1" : 7500.0,
+      "x2" : 11000.0,
+      "y2" : 7500.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "4f59705f-39e3-47bd-a72a-7b3a109674b7",
+      "x1" : 0.0,
+      "y1" : 10000.0,
+      "x2" : 2500.0,
+      "y2" : 10000.0,
+      "thicknessMm" : 150.0
+    }, {
+      "id" : "cc911314-613b-4df4-8a71-16965737cfe0",
+      "x1" : 2500.0,
+      "y1" : 10000.0,
+      "x2" : 4500.0,
+      "y2" : 10000.0,
+      "thicknessMm" : 150.0
+    } ],
+    "rooms" : [ {
+      "id" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4",
+      "name" : "Living",
+      "x" : 0.0,
+      "y" : 0.0,
+      "widthMm" : 4500.0,
+      "heightMm" : 4000.0
+    }, {
+      "id" : "c86b5878-c749-4db4-a35c-6508451499f4",
+      "name" : "Dining",
+      "x" : 4500.0,
+      "y" : 0.0,
+      "widthMm" : 3000.0,
+      "heightMm" : 3000.0
+    }, {
+      "id" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af",
+      "name" : "Kitchen",
+      "x" : 7500.0,
+      "y" : 0.0,
+      "widthMm" : 3500.0,
+      "heightMm" : 3000.0
+    }, {
+      "id" : "7fe4f90b-e177-458d-b5ea-e28e6cec739e",
+      "name" : "Master Bedroom",
+      "x" : 0.0,
+      "y" : 4000.0,
+      "widthMm" : 4000.0,
+      "heightMm" : 3500.0
+    }, {
+      "id" : "1e665ee1-320b-4851-bb29-fc4bb0d7bba4",
+      "name" : "Bedroom 2",
+      "x" : 4000.0,
+      "y" : 4000.0,
+      "widthMm" : 3500.0,
+      "heightMm" : 3500.0
+    }, {
+      "id" : "f2365c2c-0f35-4c46-9ed0-a68ad3dcf40c",
+      "name" : "Bedroom 3",
+      "x" : 7500.0,
+      "y" : 4000.0,
+      "widthMm" : 3500.0,
+      "heightMm" : 3500.0
+    }, {
+      "id" : "85e3431a-4d66-4363-8f10-7c00a3ee7329",
+      "name" : "Bathroom",
+      "x" : 0.0,
+      "y" : 7500.0,
+      "widthMm" : 2500.0,
+      "heightMm" : 2500.0
+    }, {
+      "id" : "f922a3fe-61a6-405b-8ca2-783b073657c6",
+      "name" : "Store",
+      "x" : 2500.0,
+      "y" : 7500.0,
+      "widthMm" : 2000.0,
+      "heightMm" : 2500.0
+    }, {
+      "id" : "59fbdc7d-b0c8-4ea5-9f3a-749389af01d1",
+      "name" : "Veranda",
+      "x" : 4500.0,
+      "y" : 7500.0,
+      "widthMm" : 6500.0,
+      "heightMm" : 2000.0
+    } ],
+    "openings" : [ {
+      "id" : "66b4a259-d645-4559-9651-44ef6ed6b145",
+      "wallId" : "237e3561-2261-40ef-b4a2-2759cd42ceb9",
+      "type" : "DOOR",
+      "t" : 0.15,
+      "widthMm" : 900.0
+    }, {
+      "id" : "7e34c121-b9a8-4fc1-895a-6e66bcb41b72",
+      "wallId" : "d04973f6-3bf5-4641-bd56-fb073158bf02",
+      "type" : "DOOR",
+      "t" : 0.5,
+      "widthMm" : 900.0
+    }, {
+      "id" : "ed0afd70-adee-496a-b970-e5a640ddd133",
+      "wallId" : "0c358188-13bb-4a9f-b84b-b8164ec33867",
+      "type" : "DOOR",
+      "t" : 0.3,
+      "widthMm" : 900.0
+    }, {
+      "id" : "7bedb1c1-4e0d-4f83-b544-e2f450283525",
+      "wallId" : "057d6e5c-8770-45bd-a627-02c2dfa07fb1",
+      "type" : "DOOR",
+      "t" : 0.3,
+      "widthMm" : 900.0
+    }, {
+      "id" : "9fd924b1-ab1a-4c32-8334-6150a462b4a4",
+      "wallId" : "7d1a280c-29cc-48cc-9048-f3b60830a694",
+      "type" : "DOOR",
+      "t" : 0.3,
+      "widthMm" : 900.0
+    }, {
+      "id" : "6dfc8256-b920-412b-9bdb-7167c931191b",
+      "wallId" : "4f59705f-39e3-47bd-a72a-7b3a109674b7",
+      "type" : "DOOR",
+      "t" : 0.4,
+      "widthMm" : 900.0
+    }, {
+      "id" : "803ebc85-e8ce-4d61-afc2-451271cee823",
+      "wallId" : "cc911314-613b-4df4-8a71-16965737cfe0",
+      "type" : "DOOR",
+      "t" : 0.5,
+      "widthMm" : 900.0
+    } ],
+    "devices" : [ {
+      "id" : "9945b7d4-15f0-4e98-bb9b-0cb2ee880b1b",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Living",
+      "xMm" : 2250.0,
+      "yMm" : 2000.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "2208cf19-7c09-416e-89a1-0e79be06a2aa",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Living",
+      "xMm" : 1125.0,
+      "yMm" : 2000.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "02648192-3e2d-446c-bc14-ebe75847ea04",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Living",
+      "xMm" : 675.0,
+      "yMm" : 480.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "0b1edabf-158c-4fad-9345-6c5437aa309d",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Living",
+      "xMm" : 3825.0,
+      "yMm" : 480.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "99043864-ed60-4808-b5f7-0c861e93418b",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Living",
+      "xMm" : 675.0,
+      "yMm" : 3520.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "c0ae92dd-0d74-43e9-9cfd-de59e732e4ac",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Living",
+      "xMm" : 3825.0,
+      "yMm" : 3520.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "52849bc2-114f-4f11-a958-c546d7c6fc4b",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Living",
+      "xMm" : 360.0,
+      "yMm" : 600.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "8ea06a86-197a-4e77-8bdb-79c4f3fe63d4"
+    }, {
+      "id" : "98264629-2e82-4500-8de2-29d3b7e1145a",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Dining",
+      "xMm" : 6000.0,
+      "yMm" : 1500.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "c86b5878-c749-4db4-a35c-6508451499f4"
+    }, {
+      "id" : "ebdaa8c6-ca22-40be-85fa-233b7713b62d",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Dining",
+      "xMm" : 5100.0,
+      "yMm" : 450.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "c86b5878-c749-4db4-a35c-6508451499f4"
+    }, {
+      "id" : "93712aab-61eb-455e-8eb1-b3e2d4f6c894",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Dining",
+      "xMm" : 6900.0,
+      "yMm" : 450.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "c86b5878-c749-4db4-a35c-6508451499f4"
+    }, {
+      "id" : "5e644520-c1ea-4eca-8b5e-3a7fd0c6dd66",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Dining",
+      "xMm" : 4800.0,
+      "yMm" : 600.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "c86b5878-c749-4db4-a35c-6508451499f4"
+    }, {
+      "id" : "91e8a47a-6e61-4bfe-9fa3-a0e7709a5e2b",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Kitchen",
+      "xMm" : 9250.0,
+      "yMm" : 1500.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "6c095d1a-7345-4f3d-bc5f-be66a29ed5e6",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Kitchen",
+      "xMm" : 8200.0,
+      "yMm" : 450.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "4ee54192-0a73-4ce0-954c-ee1b3c491326",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Kitchen",
+      "xMm" : 9250.0,
+      "yMm" : 450.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "91bd8bbd-5a97-49af-982b-4bd4a3255985",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Kitchen",
+      "xMm" : 10300.0,
+      "yMm" : 450.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "b2b1b8cc-2e43-40d2-adb9-ee67d682fbb6",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Kitchen",
+      "xMm" : 8200.0,
+      "yMm" : 2550.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "ac66024a-609d-4fbb-8221-62269a0ad015",
+      "componentId" : "SW-45A-DP",
+      "symbolKey" : "switch_45a_dp",
+      "nameOverride" : "Cooker switch",
+      "xMm" : 10475.0,
+      "yMm" : 2550.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "9373a834-907d-4b95-a5f8-12df513da8bb",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Kitchen",
+      "xMm" : 7850.0,
+      "yMm" : 600.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "0ce4aef5-4956-4f9c-80d5-5935ae4c18af"
+    }, {
+      "id" : "7cf88b86-b52d-43cc-b0bb-f2cd40255ef6",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Master Bedroom",
+      "xMm" : 2000.0,
+      "yMm" : 5750.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "7fe4f90b-e177-458d-b5ea-e28e6cec739e"
+    }, {
+      "id" : "5dca2792-c96e-4fda-82c3-95549c82a175",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Master Bedroom",
+      "xMm" : 600.0,
+      "yMm" : 4525.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "7fe4f90b-e177-458d-b5ea-e28e6cec739e"
+    }, {
+      "id" : "c8db48e0-4522-428b-b8ff-782acd5e50ad",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Master Bedroom",
+      "xMm" : 3400.0,
+      "yMm" : 4525.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "7fe4f90b-e177-458d-b5ea-e28e6cec739e"
+    }, {
+      "id" : "24409338-bbb9-4ddf-a611-c9432e0bea98",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Master Bedroom",
+      "xMm" : 600.0,
+      "yMm" : 6975.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "7fe4f90b-e177-458d-b5ea-e28e6cec739e"
+    }, {
+      "id" : "7d310758-5570-4f61-bdda-fd856438dd0e",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Master Bedroom",
+      "xMm" : 400.0,
+      "yMm" : 4700.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "7fe4f90b-e177-458d-b5ea-e28e6cec739e"
+    }, {
+      "id" : "2e2d5868-7aac-4cb6-836c-d02bbadbfd60",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Bedroom 2",
+      "xMm" : 5750.0,
+      "yMm" : 5750.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "1e665ee1-320b-4851-bb29-fc4bb0d7bba4"
+    }, {
+      "id" : "81a33135-7960-4687-b300-84fc57203d70",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Bedroom 2",
+      "xMm" : 4525.0,
+      "yMm" : 4525.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "1e665ee1-320b-4851-bb29-fc4bb0d7bba4"
+    }, {
+      "id" : "b83f9ea1-2aea-45c4-aa64-0ae12923d0fc",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Bedroom 2",
+      "xMm" : 6975.0,
+      "yMm" : 4525.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "1e665ee1-320b-4851-bb29-fc4bb0d7bba4"
+    }, {
+      "id" : "4768fc8b-046c-44a8-ab40-727f917801f5",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Bedroom 2",
+      "xMm" : 4350.0,
+      "yMm" : 4700.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "1e665ee1-320b-4851-bb29-fc4bb0d7bba4"
+    }, {
+      "id" : "5261569f-236d-44e0-a8f0-20b505c7f1eb",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Bedroom 3",
+      "xMm" : 9250.0,
+      "yMm" : 5750.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "f2365c2c-0f35-4c46-9ed0-a68ad3dcf40c"
+    }, {
+      "id" : "7785d996-c1ce-4014-8fc6-841dd054c5f4",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Bedroom 3",
+      "xMm" : 8025.0,
+      "yMm" : 4525.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "f2365c2c-0f35-4c46-9ed0-a68ad3dcf40c"
+    }, {
+      "id" : "206ebafb-cf62-4e02-b1e1-11956549c61f",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Bedroom 3",
+      "xMm" : 10475.0,
+      "yMm" : 4525.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "f2365c2c-0f35-4c46-9ed0-a68ad3dcf40c"
+    }, {
+      "id" : "3225c04c-d1af-401a-8f13-9854fec757af",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Bedroom 3",
+      "xMm" : 7850.0,
+      "yMm" : 4700.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "f2365c2c-0f35-4c46-9ed0-a68ad3dcf40c"
+    }, {
+      "id" : "b7a3eddf-cf0e-47cf-8de0-ffac7d1ed502",
+      "componentId" : "LIGHT-BULKHEAD",
+      "symbolKey" : "light_bulkhead",
+      "nameOverride" : "Bulkhead light",
+      "xMm" : 1250.0,
+      "yMm" : 8750.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "85e3431a-4d66-4363-8f10-7c00a3ee7329"
+    }, {
+      "id" : "19e03f5e-a49a-4917-8eb2-061b5beb8af0",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Bathroom",
+      "xMm" : 500.0,
+      "yMm" : 7875.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "85e3431a-4d66-4363-8f10-7c00a3ee7329"
+    }, {
+      "id" : "1d191c2d-5e56-4444-a535-89cd175c11bc",
+      "componentId" : "SW-1G",
+      "symbolKey" : "switch_1g",
+      "nameOverride" : "1-gang switch · Bathroom",
+      "xMm" : 250.0,
+      "yMm" : 8000.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "85e3431a-4d66-4363-8f10-7c00a3ee7329"
+    }, {
+      "id" : "82aebc23-ac77-4168-aa16-162895502f57",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Store",
+      "xMm" : 3500.0,
+      "yMm" : 8750.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "f922a3fe-61a6-405b-8ca2-783b073657c6"
+    }, {
+      "id" : "37b820ee-929d-42ab-b378-8060dcc94643",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Veranda",
+      "xMm" : 6450.0,
+      "yMm" : 8500.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "59fbdc7d-b0c8-4ea5-9f3a-749389af01d1"
+    }, {
+      "id" : "3cde2e1d-2d8f-41f5-8ee9-ae7957fa273b",
+      "componentId" : "LIGHT-LED-9W",
+      "symbolKey" : "light_led",
+      "nameOverride" : "LED light · Veranda",
+      "xMm" : 9050.0,
+      "yMm" : 8500.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "59fbdc7d-b0c8-4ea5-9f3a-749389af01d1"
+    }, {
+      "id" : "d3189c39-5285-47ad-8617-25e66ee8510f",
+      "componentId" : "SOCK-13A-2G",
+      "symbolKey" : "socket_13a_2g",
+      "nameOverride" : "13A twin socket · Veranda",
+      "xMm" : 5800.0,
+      "yMm" : 8100.0,
+      "rotationDeg" : 0.0,
+      "roomId" : "59fbdc7d-b0c8-4ea5-9f3a-749389af01d1"
+    }, {
+      "id" : "def499a7-4e6a-480b-bdd5-8df7e7f909a9",
+      "componentId" : "DB-8WAY",
+      "symbolKey" : "db_8way",
+      "nameOverride" : "Main consumer unit",
+      "xMm" : 11000.0,
+      "yMm" : 2000.0,
+      "rotationDeg" : 0.0
+    }, {
+      "id" : "c05203a5-0341-4ad1-af63-7f79a6bac87a",
+      "componentId" : "RCCB-63-30",
+      "symbolKey" : "rccb_30ma",
+      "nameOverride" : "Main RCCB 63A 30mA",
+      "xMm" : 11000.0,
+      "yMm" : 2500.0,
+      "rotationDeg" : 0.0
+    }, {
+      "id" : "0be4c907-f83d-4826-a786-dae219e31326",
+      "componentId" : "EARTH-ROD-16",
+      "symbolKey" : "earth_rod",
+      "nameOverride" : "Earth rod",
+      "xMm" : 200.0,
+      "yMm" : -800.0,
+      "rotationDeg" : 0.0
+    }, {
+      "id" : "e17568b2-d9a2-49b1-87de-0f5a8f9ca3d9",
+      "componentId" : "EARTH-CLAMP",
+      "symbolKey" : "earth_clamp",
+      "nameOverride" : "Earth clamp",
+      "xMm" : 400.0,
+      "yMm" : -800.0,
+      "rotationDeg" : 0.0
+    }, {
+      "id" : "ad1d81be-3313-43a3-9a07-ed556586c406",
+      "componentId" : "SPD-T2",
+      "symbolKey" : "spd_t2",
+      "nameOverride" : "Surge protector",
+      "xMm" : 11000.0,
+      "yMm" : 3000.0,
+      "rotationDeg" : 0.0
+    } ]
+  }
+}

@@ -6,25 +6,24 @@ AI-assisted **desktop** application for designing household electrical wiring di
 - Energy Commission guidelines
 - Ghana Standards
 
-Engineers and CEWPs can open a floor plan, auto-generate a compliant design with AI, then edit interactively with live calculations and BOQ.
+Engineers and CEWPs can open a floor plan, auto-generate a design with AI, edit interactively, calculate loads, and export PDF / Excel BOQ.
 
 | | |
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
-| **Stack** | Java 21+, JavaFX 23+, Maven, H2, Apache PDFBox |
-| **Status** | Phase 7 — PDF export |
+| **Stack** | Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI |
+| **Status** | Phase 8 complete — sample project + packaging scripts |
 
-See **[AGENTS.md](AGENTS.md)** for architecture, phases, and agent workflow.
+See **[AGENTS.md](AGENTS.md)** for architecture and agent workflow.  
+See **[docs/PACKAGING.md](docs/PACKAGING.md)** for installers and fat-jar notes.
 
 ---
 
 ## Requirements
 
-- **JDK 21+** (developed/tested with OpenJDK 25)
+- **JDK 21+**
 - **Maven 3.9+**
-- Display available for JavaFX (`DISPLAY` on Linux)
-
-### Install Maven (user-local, if needed)
+- Display for JavaFX (`DISPLAY` on Linux)
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
@@ -33,82 +32,74 @@ mvn -version
 
 ---
 
-## Build & run
+## Quick start
 
 ```bash
-cd /home/drapiigi/Projects/EDesignTool
+cd /path/to/EDesignTool
+export PATH="$HOME/.local/bin:$PATH"
 
 mvn test
 mvn javafx:run
 ```
 
-### Package (fat jar)
-
-```bash
-mvn package
-# artifact: target/gwire-designer-0.1.0-SNAPSHOT.jar
-```
-
-Prefer `mvn javafx:run` during development. Installers via **jpackage** land in Phase 8.
+Then: **Help → Open Sample 3-Bed House** to load a furnished Ghana bungalow demo.
 
 ---
 
-## Features (through Phase 7)
+## Features (Phases 1–8)
 
-- Floor plan canvas (mm units, grid snap, pan/zoom)
-- Walls, rooms, doors, windows · image/PDF background import
-- Symbol library (~73 Ghana starter components in H2)
+- Floor plan canvas (mm, grid snap, pan/zoom)
+- Walls, rooms, doors, windows · image/PDF import
+- Symbol library (~73 Ghana starter components, H2)
 - Drag-and-drop place · drag devices to move
 - Load calc, diversity, cable sizing, voltage drop, standards checks
-- **AI Generate Design** (offline rules always; optional LLM)
-- **Vision floor-plan analysis** (detect rooms from imported image/PDF; optional LLM vision)
-- **AI Co-pilot** for simple natural-language edits
-- BOQ (devices + estimated circuit cables)
-- **Save/Open** projects as `.gwire` JSON (File menu)
-- Live BOQ refresh when devices move or change
-- **PDF report export** (cover, plan, circuit schedule, BOQ, checklist)
+- AI design (offline rules + optional LLM) · vision floor-plan analysis
+- Co-pilot chat for simple edits
+- **Save/Open** `.gwire` projects
+- **PDF report** (plan, schedule, BOQ, checklist)
+- **BOQ Excel** (`.xlsx`) export
+- **Sample 3-bed house** · packaging scripts (jpackage)
 
-### Workflow tips
+### Common actions
 
 | Action | How |
 |--------|-----|
-| Draw room | Tool **Room** → drag rectangle |
-| Place symbol | Drag from library onto canvas |
-| Move symbol | **Select** → drag device |
-| **AI design** | Draw rooms → **Design → AI Generate Design** (Ctrl+G) |
-| **Vision rooms** | Import plan → **Design → Analyze Floor Plan (Vision)** |
-| **Vision + design** | Import plan → **Design → Vision + AI Design (full)** |
-| Rules only | **Design → AI Generate (rules only)** |
-| Co-pilot | **Tools → AI Co-pilot Chat** (e.g. `add socket in Living`) |
-| Save / Open | **File → Save** (Ctrl+S) · **Open** (Ctrl+O) · **Save As** |
-| **Export PDF** | **File → Export PDF Report** (Ctrl+E) |
-| **Export BOQ Excel** | **File → Export BOQ (Excel)…** |
+| Sample project | **Help → Open Sample 3-Bed House** |
+| Save / Open | **File → Save** (Ctrl+S) · **Open** (Ctrl+O) |
+| Export PDF | **File → Export PDF Report** (Ctrl+E) |
+| Export BOQ Excel | **File → Export BOQ (Excel)…** |
+| AI design | **Design → AI Generate Design** (Ctrl+G) |
+| Vision rooms | Import plan → **Design → Analyze Floor Plan (Vision)** |
 | Recalculate | **Tools → Recalculate Loads** (Ctrl+R) |
 | Validate | **Tools → Validate Standards** (Ctrl+L) |
 
-### Optional LLM config
-
-Offline **rule-based** generation works with no API key.
+### Optional LLM / vision
 
 ```bash
-# Environment (examples)
-export GWIRE_AI_PROVIDER=openai   # or xai | none
-export GWIRE_AI_API_KEY=sk-...
-export GWIRE_AI_MODEL=gpt-4o-mini   # vision-capable model recommended
-# export GWIRE_AI_BASE_URL=https://api.x.ai/v1   # for xAI Grok
-
-# Or file: ~/.gwire/ai.properties
-# provider=openai
-# apiKey=...
-# model=gpt-4o-mini
-# baseUrl=https://api.openai.com/v1
+export GWIRE_AI_PROVIDER=openai   # or xai
+export GWIRE_AI_API_KEY=...
+export GWIRE_AI_MODEL=gpt-4o-mini
 ```
 
-Without an API key, vision still runs an **offline fallback** (one room covering the plan) so you can continue with rules-based electrical placement.
+Or `~/.gwire/ai.properties`. Without a key, offline rules and a simple vision fallback still work.
 
-Never commit API keys. Component library DB: `~/.gwire/library`.
+Never commit API keys. Component library: `~/.gwire/library`.
 
-> Calculation and AI heuristics are for **preliminary design**. A **CEWP** must verify real installations.
+> Calculations and AI heuristics are for **preliminary design**. A **CEWP** must verify real installations.
+
+---
+
+## Packaging
+
+```bash
+# Linux app-image
+./scripts/package-linux.sh
+
+# Windows (PowerShell)
+powershell -File scripts/package-windows.ps1
+```
+
+Details: [docs/PACKAGING.md](docs/PACKAGING.md).
 
 ---
 
@@ -118,10 +109,10 @@ Never commit API keys. Component library DB: `~/.gwire/library`.
 2. **Phase 2** — Floor plan drawing + import ✅  
 3. **Phase 3** — Symbol library + starter component DB ✅  
 4. **Phase 4** — Calculation & standards engine ✅  
-5. **Phase 5** — AI design generation ✅  
-6. **Phase 6** — Project save/load, richer live updates ✅  
-7. **Phase 7** — PDF export & reports ✅  
-8. **Phase 8** — Packaging, sample project, polish  
+5. **Phase 5** — AI design + vision ✅  
+6. **Phase 6** — Project save/load ✅  
+7. **Phase 7** — PDF + Excel BOQ export ✅  
+8. **Phase 8** — Packaging, sample 3-bed house, polish ✅  
 
 ---
 
