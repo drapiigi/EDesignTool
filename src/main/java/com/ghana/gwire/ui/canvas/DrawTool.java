@@ -6,7 +6,9 @@ public enum DrawTool {
     WALL("Wall"),
     ROOM("Room"),
     DOOR("Door"),
-    WINDOW("Window");
+    WINDOW("Window"),
+    /** Place selected catalogue component (set via symbol library). */
+    PLACE_DEVICE("Place");
 
     private final String label;
 

@@ -180,3 +180,23 @@
     -fx-border-radius: 4;
     -fx-background-radius: 4;
 }
+
+.symbol-library-panel .list-view {
+    -fx-background-color: #1a2030;
+    -fx-border-color: #2a3344;
+    -fx-control-inner-background: #1a2030;
+}
+
+.symbol-library-panel .list-cell {
+    -fx-text-fill: #e8edf5;
+    -fx-background-color: transparent;
+}
+
+.symbol-library-panel .list-cell:filled:selected {
+    -fx-background-color: #2f9e6a;
+    -fx-text-fill: #0e1219;
+}
+
+.symbol-library-panel .list-cell:filled:hover {
+    -fx-background-color: #2a3344;
+}

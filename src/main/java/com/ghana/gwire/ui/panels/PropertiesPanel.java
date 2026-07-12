@@ -204,6 +204,22 @@ public class PropertiesPanel {
                 );
                 hideRoomName();
             }
+            case DEVICE -> {
+                var d = selection.device();
+                selectionTitle.setText("Device");
+                selectionBody.setText(
+                        "Name: %s\nComponent: %s\nSymbol: %s\nPosition: (%.0f, %.0f) mm\nRotation: %.0f°"
+                                .formatted(
+                                        d.displayName(),
+                                        d.componentId(),
+                                        d.symbolKey(),
+                                        d.xMm(),
+                                        d.yMm(),
+                                        d.rotationDeg()
+                                )
+                );
+                hideRoomName();
+            }
             case NONE -> {
                 selectionTitle.setText("Nothing selected");
                 selectionBody.setText("Select a wall, room, door, or window.");

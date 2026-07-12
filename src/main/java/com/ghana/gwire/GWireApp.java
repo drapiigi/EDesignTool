@@ -1,5 +1,6 @@
 package com.ghana.gwire;
 
+import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.ui.MainWindow;
 import com.ghana.gwire.ui.theme.ThemeManager;
 import javafx.application.Application;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Phase 1: application shell, menus, theming, and layout placeholders
  * for floor plan canvas, properties, and BOQ panels.
+ * Phase 3: component library bootstrap (H2 seed catalogue).
  */
 public class GWireApp extends Application {
 
@@ -25,6 +27,12 @@ public class GWireApp extends Application {
     @Override
     public void start(Stage stage) {
         log.info("Starting {} {} ({})", APP_NAME, APP_SHORT_NAME, APP_VERSION);
+
+        try {
+            LibraryBootstrap.initialize();
+        } catch (Exception e) {
+            log.error("Component library init failed (UI will continue): {}", e.getMessage(), e);
+        }
 
         ThemeManager themeManager = new ThemeManager();
         MainWindow mainWindow = new MainWindow(stage, themeManager);
@@ -39,6 +47,12 @@ public class GWireApp extends Application {
         stage.show();
 
         log.info("UI ready");
+    }
+
+    @Override
+    public void stop() {
+        LibraryBootstrap.shutdown();
+        log.info("Shutdown complete");
     }
 
     public static void main(String[] args) {

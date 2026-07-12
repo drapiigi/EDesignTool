@@ -1,6 +1,8 @@
 package com.ghana.gwire.ui;
 
 import com.ghana.gwire.GWireApp;
+import com.ghana.gwire.db.LibraryBootstrap;
+import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
@@ -8,6 +10,7 @@ import com.ghana.gwire.ui.menu.AppMenuBar;
 import com.ghana.gwire.ui.panels.BoqPanel;
 import com.ghana.gwire.ui.panels.PropertiesPanel;
 import com.ghana.gwire.ui.panels.StatusBar;
+import com.ghana.gwire.ui.panels.SymbolLibraryPanel;
 import com.ghana.gwire.ui.theme.ThemeManager;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Alert;
@@ -19,7 +22,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 /**
- * Primary application chrome: menu, floor-plan workspace, properties, BOQ, status.
+ * Primary application chrome: library, floor-plan workspace, properties, BOQ, status.
  */
 public class MainWindow {
 
@@ -29,6 +32,8 @@ public class MainWindow {
     private final StatusBar statusBar;
     private final FloorPlanWorkspace workspace;
     private final PropertiesPanel propertiesPanel;
+    private final SymbolLibraryPanel symbolLibraryPanel;
+    private final BoqPanel boqPanel;
     private final AppMenuBar menuBar;
 
     private Project project;
@@ -39,6 +44,8 @@ public class MainWindow {
         this.statusBar = new StatusBar();
         this.workspace = new FloorPlanWorkspace();
         this.propertiesPanel = new PropertiesPanel();
+        this.symbolLibraryPanel = new SymbolLibraryPanel();
+        this.boqPanel = new BoqPanel();
         this.menuBar = new AppMenuBar(this);
 
         workspace.setOwnerWindow(stage);
@@ -49,18 +56,24 @@ public class MainWindow {
         propertiesPanel.setOnGeometryChanged(() -> {
             workspace.getCanvas().redraw();
             refreshSelection();
+            boqPanel.refresh();
         });
 
-        BoqPanel boqPanel = new BoqPanel();
+        symbolLibraryPanel.setStatusSink(statusBar::setMessage);
+        symbolLibraryPanel.setPlaceListener(this::placeComponent);
 
         SplitPane rightSplit = new SplitPane(propertiesPanel.getRoot(), boqPanel.getRoot());
         rightSplit.setOrientation(Orientation.VERTICAL);
-        rightSplit.setDividerPositions(0.58);
-        rightSplit.setPrefWidth(320);
+        rightSplit.setDividerPositions(0.55);
+        rightSplit.setPrefWidth(300);
 
-        SplitPane centerSplit = new SplitPane(workspace.getRoot(), rightSplit);
+        SplitPane centerSplit = new SplitPane(
+                symbolLibraryPanel.getRoot(),
+                workspace.getRoot(),
+                rightSplit
+        );
         centerSplit.setOrientation(Orientation.HORIZONTAL);
-        centerSplit.setDividerPositions(0.72);
+        centerSplit.setDividerPositions(0.22, 0.72);
         VBox.setVgrow(centerSplit, Priority.ALWAYS);
 
         VBox centerColumn = new VBox(centerSplit);
@@ -72,9 +85,16 @@ public class MainWindow {
         root.setCenter(centerColumn);
         root.setBottom(statusBar.getRoot());
 
-        // Auto-start with an empty project so drawing works immediately
         createProject("Untitled project", false);
-        statusBar.setMessage("Phase 2 ready — draw walls/rooms or import a floor plan (image/PDF).");
+        int count = 0;
+        try {
+            if (LibraryBootstrap.get() != null) {
+                count = LibraryBootstrap.get().count();
+            }
+        } catch (Exception ignored) {
+            // library optional at UI build time
+        }
+        statusBar.setMessage("Phase 3 ready — place symbols from the library (" + count + " components).");
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
     }
 
@@ -115,6 +135,7 @@ public class MainWindow {
         project = new Project(name);
         workspace.bindProject(project);
         propertiesPanel.setProject(project);
+        boqPanel.setProject(project);
         refreshTitleAndStatus();
         refreshSelection();
         if (announce) {
@@ -129,7 +150,7 @@ public class MainWindow {
         info.setTitle("Open project");
         info.setHeaderText("Not yet available");
         info.setContentText(
-                "Phase 2 supports live floor-plan editing and import.\n"
+                "Phase 3 supports floor-plan editing, import, and the component library.\n"
                         + "Saving/loading .gwire project files is planned with the persistence layer."
         );
         info.showAndWait();
@@ -143,20 +164,41 @@ public class MainWindow {
         workspace.importFloorPlan();
     }
 
+    public void showComponentLibrary() {
+        symbolLibraryPanel.reload();
+        statusBar.setMessage("Component library reloaded ("
+                + (LibraryBootstrap.get() == null ? 0 : LibraryBootstrap.get().count())
+                + " items)");
+    }
+
+    public void placeComponent(ElectricalComponent component) {
+        if (component == null) {
+            return;
+        }
+        workspace.getCanvas().beginPlaceComponent(component);
+        setTool(DrawTool.PLACE_DEVICE);
+    }
+
     public void setTool(DrawTool tool) {
         workspace.setTool(tool);
     }
 
     public void undo() {
         workspace.getCanvas().undo();
+        boqPanel.refresh();
+        refreshTitleAndStatus();
     }
 
     public void redo() {
         workspace.getCanvas().redo();
+        boqPanel.refresh();
+        refreshTitleAndStatus();
     }
 
     public void deleteSelection() {
         workspace.getCanvas().deleteSelection();
+        boqPanel.refresh();
+        refreshTitleAndStatus();
     }
 
     public void zoomIn() {
@@ -172,6 +214,7 @@ public class MainWindow {
     }
 
     public void showAbout() {
+        int n = LibraryBootstrap.get() == null ? 0 : LibraryBootstrap.get().count();
         Alert about = new Alert(Alert.AlertType.INFORMATION);
         about.initOwner(stage);
         about.setTitle("About " + GWireApp.APP_NAME);
@@ -186,8 +229,8 @@ public class MainWindow {
 
                 Stack: Java 21+, JavaFX 23+, Maven, H2, PDFBox
 
-                Phase 2: Floor plan drawing + image/PDF import.
-                """.formatted(GWireApp.APP_VERSION)
+                Phase 3: Symbol library + starter component DB (%d items).
+                """.formatted(GWireApp.APP_VERSION, n)
         );
         about.showAndWait();
     }
@@ -198,6 +241,8 @@ public class MainWindow {
 
     private void refreshSelection() {
         propertiesPanel.showSelection(workspace.getSelection());
+        boqPanel.refresh();
+        refreshTitleAndStatus();
     }
 
     private void refreshTitleAndStatus() {
@@ -211,6 +256,7 @@ public class MainWindow {
                 "L.I. 2008 · " + project.supplySummary()
                         + " · walls " + project.floorPlan().walls().size()
                         + " · rooms " + project.floorPlan().rooms().size()
+                        + " · devices " + project.floorPlan().devices().size()
         );
     }
 }

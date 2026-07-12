@@ -1,5 +1,6 @@
 package com.ghana.gwire.domain.floorplan;
 
+import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.geometry.Segment2;
 import com.ghana.gwire.domain.geometry.Vec2;
 
@@ -9,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Vector floor plan: walls, rooms, openings, optional raster background.
+ * Vector floor plan: walls, rooms, openings, placed devices, optional raster background.
  * Coordinates are millimetres in a plan-local XY frame.
  */
 public final class FloorPlan {
@@ -17,6 +18,7 @@ public final class FloorPlan {
     private final List<Wall> walls = new ArrayList<>();
     private final List<Room> rooms = new ArrayList<>();
     private final List<Opening> openings = new ArrayList<>();
+    private final List<PlacedDevice> devices = new ArrayList<>();
     private BackgroundImage background;
     private double gridMm = 500;
     private boolean snapToGrid = true;
@@ -31,6 +33,10 @@ public final class FloorPlan {
 
     public List<Opening> openings() {
         return Collections.unmodifiableList(openings);
+    }
+
+    public List<PlacedDevice> devices() {
+        return Collections.unmodifiableList(devices);
     }
 
     public BackgroundImage background() {
@@ -77,6 +83,10 @@ public final class FloorPlan {
         openings.add(opening);
     }
 
+    public void addDevice(PlacedDevice device) {
+        devices.add(device);
+    }
+
     public boolean removeWallById(String id) {
         openings.removeIf(o -> o.wallId().equals(id));
         return walls.removeIf(w -> w.id().equals(id));
@@ -88,6 +98,10 @@ public final class FloorPlan {
 
     public boolean removeOpeningById(String id) {
         return openings.removeIf(o -> o.id().equals(id));
+    }
+
+    public boolean removeDeviceById(String id) {
+        return devices.removeIf(d -> d.id().equals(id));
     }
 
     public Optional<Wall> findWall(String id) {
@@ -102,10 +116,15 @@ public final class FloorPlan {
         return openings.stream().filter(o -> o.id().equals(id)).findFirst();
     }
 
+    public Optional<PlacedDevice> findDevice(String id) {
+        return devices.stream().filter(d -> d.id().equals(id)).findFirst();
+    }
+
     public void clearGeometry() {
         walls.clear();
         rooms.clear();
         openings.clear();
+        devices.clear();
     }
 
     public void clearAll() {
@@ -159,6 +178,22 @@ public final class FloorPlan {
         return Optional.ofNullable(best);
     }
 
+    /**
+     * Hit-test placed devices within {@code radiusMm}; returns nearest if any.
+     */
+    public Optional<PlacedDevice> hitDevice(Vec2 p, double radiusMm) {
+        PlacedDevice best = null;
+        double bestDist = radiusMm;
+        for (PlacedDevice d : devices) {
+            double dist = d.distanceTo(p);
+            if (dist <= bestDist) {
+                bestDist = dist;
+                best = d;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
     public FloorPlan deepCopy() {
         FloorPlan copy = new FloorPlan();
         copy.gridMm = gridMm;
@@ -172,6 +207,9 @@ public final class FloorPlan {
         for (Opening o : openings) {
             copy.openings.add(o.copy());
         }
+        for (PlacedDevice d : devices) {
+            copy.devices.add(d.copy());
+        }
         if (background != null) {
             copy.background = background.copy();
         }
@@ -182,6 +220,7 @@ public final class FloorPlan {
         walls.clear();
         rooms.clear();
         openings.clear();
+        devices.clear();
         gridMm = other.gridMm;
         snapToGrid = other.snapToGrid;
         for (Wall w : other.walls) {
@@ -192,6 +231,9 @@ public final class FloorPlan {
         }
         for (Opening o : other.openings) {
             openings.add(o.copy());
+        }
+        for (PlacedDevice d : other.devices) {
+            devices.add(d.copy());
         }
         background = other.background == null ? null : other.background.copy();
     }

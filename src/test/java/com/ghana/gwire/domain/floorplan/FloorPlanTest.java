@@ -1,5 +1,6 @@
 package com.ghana.gwire.domain.floorplan;
 
+import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.geometry.Vec2;
 import org.junit.jupiter.api.Test;
 
@@ -58,5 +59,21 @@ class FloorPlanTest {
         Vec2 snapped = plan.snap(new Vec2(620, 180));
         assertEquals(500, snapped.x(), 1e-9);
         assertEquals(0, snapped.y(), 1e-9);
+    }
+
+    @Test
+    void placedDeviceAddHitAndDeepCopy() {
+        FloorPlan plan = new FloorPlan();
+        PlacedDevice socket = new PlacedDevice("SOCK-13A-2G", "socket_13a_2g", 1500, 2000);
+        plan.addDevice(socket);
+
+        assertEquals(1, plan.devices().size());
+        assertTrue(plan.hitDevice(new Vec2(1520, 2010), 50).isPresent());
+        assertEquals(socket.id(), plan.hitDevice(new Vec2(1520, 2010), 50).get().id());
+
+        FloorPlan copy = plan.deepCopy();
+        plan.removeDeviceById(socket.id());
+        assertEquals(0, plan.devices().size());
+        assertEquals(1, copy.devices().size());
     }
 }

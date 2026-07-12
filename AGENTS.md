@@ -53,7 +53,7 @@
 |-------|------|--------|
 | 1 | Maven + JavaFX shell, menus, themes, layout placeholders | **Done** |
 | 2 | Floor plan module (draw + image/PDF import) | **Done** |
-| 3 | Electrical symbol library + starter component DB | Planned |
+| 3 | Electrical symbol library + starter component DB | **Done** |
 | 4 | Calculation & standards engine | Planned |
 | 5 | AI generation integration | Planned |
 | 6 | Real-time updates, BOQ, validation | Planned |
@@ -135,12 +135,21 @@
 - Properties panel: project name, house type, supply, selection details, room rename
 - Unit tests: geometry, floor plan, history, import
 
+### Done (Phase 3)
+
+- H2 component library at `~/.gwire/library` with Ghana starter seed (**73** items)
+- Domain: `ElectricalComponent`, `ComponentCategory`, `PlacedDevice`
+- `ComponentLibraryService` / repository / seed / `LibraryBootstrap`
+- Symbol library panel (filter, search, place)
+- `SymbolRenderer` (IEC/BS-inspired glyphs by `symbolKey`)
+- Canvas place tool + device hit-test/select/delete
+- BOQ panel counts placed devices with GHS costs from catalogue
+
 ### Open tasks
 
-- [ ] Phase 3: symbol library + seed component database
 - [ ] Phase 4: load calc, cable sizing, voltage drop, diversity
 - [ ] Phase 5: AI generate design (vision + LLM + rule fallback)
-- [ ] Phase 6: live model updates, BOQ, standards warnings, project save/load
+- [ ] Phase 6: live model updates, full BOQ (cable lengths), standards warnings, project save/load
 - [ ] Phase 7: PDF exports (plans, SLD, schedules, BOQ, checklist)
 - [ ] Phase 8: jpackage installers, sample project, full docs
 
@@ -151,9 +160,10 @@
 ```
 src/main/java/com/ghana/gwire/
   Main.java, GWireApp.java
-  domain/geometry/, domain/floorplan/, domain/project/
+  domain/geometry/, domain/floorplan/, domain/project/, domain/components/
+  db/ (H2 library, seed, repository)
   service/importing/, service/history/
-  ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/
+  ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/, ui/symbols/
 src/main/resources/css/
 src/test/java/
 pom.xml

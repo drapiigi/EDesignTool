@@ -111,6 +111,7 @@ public class DrawingToolbar {
             case ROOM -> "Draw room: drag a rectangle";
             case DOOR -> "Place door on a wall";
             case WINDOW -> "Place window on a wall";
+            case PLACE_DEVICE -> "Place library component (pick from symbol library)";
         };
     }
 }

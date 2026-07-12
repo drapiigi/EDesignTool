@@ -71,15 +71,16 @@ public class AppMenuBar {
                 item("Tool: _Door", null, false, () -> window.setTool(DrawTool.DOOR)),
                 item("Tool: Windo_w", null, false, () -> window.setTool(DrawTool.WINDOW)),
                 item("Tool: _Pan", null, false, () -> window.setTool(DrawTool.PAN)),
+                item("Tool: Place s_ymbol", null, false, () -> window.setTool(DrawTool.PLACE_DEVICE)),
                 new SeparatorMenuItem(),
-                disabled("Insert _Symbol…")
+                item("Insert from _Library…", null, false, window::showComponentLibrary)
         );
 
         Menu tools = new Menu("_Tools");
         tools.getItems().addAll(
                 disabled("_Validate Standards (L.I. 2008)"),
                 disabled("_Recalculate Loads"),
-                disabled("Component _Library…"),
+                item("Component _Library", null, false, window::showComponentLibrary),
                 new SeparatorMenuItem(),
                 disabled("AI _Co-pilot Chat…")
         );

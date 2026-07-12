@@ -1,5 +1,7 @@
 package com.ghana.gwire.ui.canvas;
 
+import com.ghana.gwire.domain.components.ElectricalComponent;
+import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.floorplan.BackgroundImage;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 import com.ghana.gwire.domain.floorplan.Opening;
@@ -9,6 +11,7 @@ import com.ghana.gwire.domain.floorplan.Wall;
 import com.ghana.gwire.domain.geometry.Segment2;
 import com.ghana.gwire.domain.geometry.Vec2;
 import com.ghana.gwire.service.history.FloorPlanHistory;
+import com.ghana.gwire.ui.symbols.SymbolRenderer;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.canvas.Canvas;
@@ -66,6 +69,9 @@ public class FloorPlanCanvas {
     private Vec2 previewEnd;
     private Vec2 roomPreviewCorner;
 
+    /** Catalogue component pending placement (PLACE_DEVICE tool). */
+    private ElectricalComponent pendingComponent;
+
     public FloorPlanCanvas(FloorPlanHistory history) {
         this.history = Objects.requireNonNull(history);
         canvas = new Canvas(800, 600);
@@ -107,6 +113,23 @@ public class FloorPlanCanvas {
 
     public void setTool(DrawTool t) {
         tool.set(t);
+    }
+
+    /**
+     * Arms place mode for a catalogue component; next primary click inserts it.
+     */
+    public void beginPlaceComponent(ElectricalComponent component) {
+        this.pendingComponent = Objects.requireNonNull(component, "component");
+        setTool(DrawTool.PLACE_DEVICE);
+        status("Click canvas to place: " + component.name());
+    }
+
+    public ElectricalComponent getPendingComponent() {
+        return pendingComponent;
+    }
+
+    public void clearPendingComponent() {
+        pendingComponent = null;
     }
 
     public SelectionModel getSelection() {
@@ -226,6 +249,7 @@ public class FloorPlanCanvas {
             case WALL -> floorPlan.removeWallById(selection.wall().id());
             case ROOM -> floorPlan.removeRoomById(selection.room().id());
             case OPENING -> floorPlan.removeOpeningById(selection.opening().id());
+            case DEVICE -> floorPlan.removeDeviceById(selection.device().id());
             case NONE -> {
             }
         }
@@ -247,6 +271,7 @@ public class FloorPlanCanvas {
         drawRooms(g);
         drawWalls(g);
         drawOpenings(g);
+        drawDevices(g);
         drawPreview(g);
         drawHud(g, w, h);
     }
@@ -312,6 +337,7 @@ public class FloorPlanCanvas {
             }
             case DOOR -> placeOpening(world, OpeningType.DOOR, 900);
             case WINDOW -> placeOpening(world, OpeningType.WINDOW, 1200);
+            case PLACE_DEVICE -> placePendingDevice(world);
             case PAN -> {
                 panning = true;
                 panAnchorX = e.getX();
@@ -369,6 +395,10 @@ public class FloorPlanCanvas {
 
     private void onKey(KeyEvent e) {
         if (e.getCode() == KeyCode.ESCAPE) {
+            pendingComponent = null;
+            if (getTool() == DrawTool.PLACE_DEVICE) {
+                setTool(DrawTool.SELECT);
+            }
             cancelInProgress();
             selection.clear();
             fireSelection();
@@ -393,6 +423,14 @@ public class FloorPlanCanvas {
 
     private void selectAt(Vec2 world) {
         double tol = 200 / Math.max(scale, 0.01); // ~px tolerance in mm
+        double deviceTol = Math.max(tol, SymbolRenderer.hitRadiusMm());
+        var device = floorPlan.hitDevice(world, deviceTol);
+        if (device.isPresent()) {
+            selection.selectDevice(device.get());
+            fireSelection();
+            status(selection.summary());
+            return;
+        }
         var opening = floorPlan.hitOpening(world, tol);
         if (opening.isPresent()) {
             selection.selectOpening(opening.get());
@@ -417,6 +455,30 @@ public class FloorPlanCanvas {
         selection.clear();
         fireSelection();
         status("Nothing selected");
+    }
+
+    private void placePendingDevice(Vec2 world) {
+        if (pendingComponent == null) {
+            status("Choose a component from the symbol library first");
+            setTool(DrawTool.SELECT);
+            return;
+        }
+        history.push(floorPlan);
+        PlacedDevice device = new PlacedDevice(
+                pendingComponent.id(),
+                pendingComponent.symbolKey(),
+                world.x(),
+                world.y()
+        );
+        device.setNameOverride(pendingComponent.name());
+        // Assign room if click falls inside one
+        floorPlan.hitRoom(world).ifPresent(r -> device.setRoomId(r.id()));
+        floorPlan.addDevice(device);
+        selection.selectDevice(device);
+        fireSelection();
+        status("Placed " + pendingComponent.name() + " at (%.0f, %.0f) mm"
+                .formatted(world.x(), world.y()));
+        // Stay in place mode for multi-insert; Esc clears
     }
 
     private void commitWall(Vec2 a, Vec2 b) {
@@ -473,6 +535,9 @@ public class FloorPlanCanvas {
         roomOrigin = null;
         roomPreviewCorner = null;
         panning = false;
+        if (getTool() != DrawTool.PLACE_DEVICE) {
+            pendingComponent = null;
+        }
     }
 
     private void status(String msg) {
@@ -639,15 +704,36 @@ public class FloorPlanCanvas {
         g.setLineDashes(null);
     }
 
+    private void drawDevices(GraphicsContext g) {
+        double size = SymbolRenderer.screenSize(scale);
+        for (PlacedDevice d : floorPlan.devices()) {
+            boolean selected = selection.kind() == SelectionModel.Kind.DEVICE
+                    && selection.device() != null
+                    && selection.device().id().equals(d.id());
+            SymbolRenderer.draw(
+                    g,
+                    d.symbolKey(),
+                    worldToScreenX(d.xMm()),
+                    worldToScreenY(d.yMm()),
+                    size,
+                    d.rotationDeg(),
+                    selected
+            );
+        }
+    }
+
     private void drawHud(GraphicsContext g, double w, double h) {
         g.setFill(Color.web("#12161e", 0.75));
-        g.fillRoundRect(10, h - 34, 300, 24, 6, 6);
+        g.fillRoundRect(10, h - 34, 360, 24, 6, 6);
         g.setFill(Color.web("#9aa6b8"));
         g.setFont(Font.font(11));
-        g.fillText("Grid %.0f mm · snap %s · %.3f px/mm".formatted(
+        String place = pendingComponent != null ? " · placing " + pendingComponent.name() : "";
+        g.fillText("Grid %.0f mm · snap %s · %.3f px/mm · %d devices%s".formatted(
                         floorPlan.gridMm(),
                         floorPlan.isSnapToGrid() ? "on" : "off",
-                        scale),
+                        scale,
+                        floorPlan.devices().size(),
+                        place),
                 18, h - 17);
     }
 }

@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a compliant design with
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, Apache PDFBox |
-| **Status** | Phase 2 — floor plan draw + import |
+| **Status** | Phase 3 — symbol library + component DB |
 
 See **[AGENTS.md](AGENTS.md)** for architecture, phases, and agent workflow.
 
@@ -57,15 +57,17 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 
 ---
 
-## Features (through Phase 2)
+## Features (through Phase 3)
 
 - Main window with dark/light themes, menus, status bar
 - Floor plan canvas (mm world units, 500 mm grid snap)
-- Tools: Select, Pan, Wall, Room, Door, Window
+- Tools: Select, Pan, Wall, Room, Door, Window, Place
 - Import floor plan background: images + PDF (page 1)
 - Undo/redo, delete selection, zoom / fit view
 - Project properties (name, house type, 230 V / 400 V supply)
-- BOQ panel placeholder (populated in later phases)
+- **Symbol library** (H2 catalogue, ~73 Ghana starter components)
+- Place sockets, lights, switches, DBs, protection devices, etc.
+- BOQ panel from placed devices (GHS unit costs from catalogue)
 
 ### Canvas tips
 
@@ -78,6 +80,9 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 | Zoom | Mouse wheel · View menu |
 | Delete | Select element → Delete |
 | Import plan | Toolbar **Import plan…** or File → Import Floor Plan |
+| Place symbol | Library panel → select → **Place on plan** → click canvas |
+
+Component library DB (auto-seeded): `~/.gwire/library`
 
 ---
 
@@ -85,7 +90,7 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 
 1. **Phase 1** — Maven + JavaFX shell ✅  
 2. **Phase 2** — Floor plan drawing + import ✅  
-3. **Phase 3** — Symbol library + starter component DB  
+3. **Phase 3** — Symbol library + starter component DB ✅  
 4. **Phase 4** — Calculation & standards engine  
 5. **Phase 5** — AI design generation  
 6. **Phase 6** — Real-time updates, BOQ, validation, save/load  
