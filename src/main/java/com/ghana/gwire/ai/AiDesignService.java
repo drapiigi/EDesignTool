@@ -1,15 +1,20 @@
 package com.ghana.gwire.ai;
 
+import com.ghana.gwire.ai.vision.ImageEncoder;
+import com.ghana.gwire.ai.vision.VisionFloorPlanAnalyzer;
+import com.ghana.gwire.ai.vision.VisionFloorPlanResult;
 import com.ghana.gwire.db.ComponentLibraryService;
 import com.ghana.gwire.db.ComponentSeed;
 import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.components.PlacedDevice;
+import com.ghana.gwire.domain.floorplan.BackgroundImage;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 import com.ghana.gwire.domain.floorplan.Room;
 import com.ghana.gwire.domain.project.Project;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +39,7 @@ public final class AiDesignService {
     private final AiSettings settings;
     private final RuleBasedDesignGenerator rules;
     private final LlmDesignGenerator llm;
+    private final VisionFloorPlanAnalyzer vision;
 
     public AiDesignService() {
         this(AiSettings.load());
@@ -43,6 +49,7 @@ public final class AiDesignService {
         this.settings = settings == null ? AiSettings.load() : settings;
         this.rules = new RuleBasedDesignGenerator();
         this.llm = new LlmDesignGenerator(this.settings);
+        this.vision = new VisionFloorPlanAnalyzer(this.settings);
     }
 
     /** Test hook with injectable LLM generator. */
@@ -50,6 +57,7 @@ public final class AiDesignService {
         this.settings = settings == null ? AiSettings.load() : settings;
         this.rules = rules == null ? new RuleBasedDesignGenerator() : rules;
         this.llm = llm;
+        this.vision = new VisionFloorPlanAnalyzer(this.settings);
     }
 
     public AiSettings settings() {
@@ -92,6 +100,81 @@ public final class AiDesignService {
     public AiDesignPlan generateRulesOnly(Project project, List<ElectricalComponent> catalogue) {
         Objects.requireNonNull(project, "project");
         return rules.generate(project, catalogue == null ? List.of() : catalogue);
+    }
+
+    /**
+     * Analyses an imported floor-plan image with a vision model (or offline fallback).
+     * Does not modify the project — call {@link VisionFloorPlanResult#applyTo} or
+     * {@link #analyzeAndApplyVision}.
+     */
+    public Optional<VisionFloorPlanResult> analyzeFloorPlanImage(Path imagePath) {
+        Objects.requireNonNull(imagePath, "imagePath");
+        Optional<VisionFloorPlanResult> llm = vision.analyzeFile(imagePath);
+        if (llm.isPresent()) {
+            return llm;
+        }
+        try {
+            ImageEncoder.EncodedImage enc = ImageEncoder.encodeFile(imagePath);
+            log.info("Using offline full-plan room fallback for vision (no LLM result)");
+            return Optional.of(VisionFloorPlanAnalyzer.offlineFullPlanRoom(
+                    enc.originalWidth(), enc.originalHeight(), imagePath.getFileName().toString()
+            ));
+        } catch (Exception e) {
+            log.warn("Could not encode image for offline vision fallback: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Vision-analyse the project's background floor plan and apply rooms/walls.
+     *
+     * @return result summary; empty if no background or analysis failed
+     */
+    public Optional<VisionFloorPlanResult> analyzeAndApplyVision(
+            Project project,
+            boolean clearExistingRoomsWalls,
+            boolean clearDevices
+    ) {
+        Objects.requireNonNull(project, "project");
+        BackgroundImage bg = project.floorPlan().background();
+        if (bg == null || bg.sourcePath() == null || bg.sourcePath().isBlank()) {
+            log.warn("Vision apply skipped: no background image on project");
+            return Optional.empty();
+        }
+        Path path = Path.of(bg.sourcePath());
+        Optional<VisionFloorPlanResult> result = analyzeFloorPlanImage(path);
+        if (result.isEmpty()) {
+            return Optional.empty();
+        }
+        VisionFloorPlanResult r = result.get();
+        int rooms = r.applyTo(project.floorPlan(), bg, clearExistingRoomsWalls, clearDevices);
+        project.touch();
+        log.info("Vision applied: {} rooms · {}", rooms, r.summary());
+        return Optional.of(r);
+    }
+
+    /**
+     * Full pipeline: vision rooms from background → electrical design (LLM or rules) → devices.
+     *
+     * @return number of devices placed; −1 if vision/geometry failed
+     */
+    public int generateFromVisionBackground(
+            Project project,
+            ComponentLibraryService library,
+            boolean clearRoomsWalls,
+            boolean clearDevices
+    ) {
+        Optional<VisionFloorPlanResult> visionResult =
+                analyzeAndApplyVision(project, clearRoomsWalls, clearDevices);
+        if (visionResult.isEmpty()) {
+            return -1;
+        }
+        if (project.floorPlan().rooms().isEmpty()) {
+            log.warn("Vision produced no rooms — skipping electrical generate");
+            return 0;
+        }
+        AiDesignPlan plan = generate(project, library);
+        return apply(project, plan, true);
     }
 
     /**

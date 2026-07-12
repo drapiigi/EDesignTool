@@ -17,15 +17,14 @@ import java.util.Objects;
 
 /**
  * Minimal OpenAI-compatible chat completions client (OpenAI, xAI Grok, local proxies).
- * Package-visible for tests; constructed by {@link LlmDesignGenerator} / {@link AiDesignService}.
- *
- * <p>Does not log API keys.
+ * Supports text and multimodal (vision) messages. Does not log API keys.
  */
 public final class OpenAiCompatClient {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatClient.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
+    private static final Duration VISION_TIMEOUT = Duration.ofSeconds(120);
 
     private final AiSettings settings;
     private final HttpClient http;
@@ -40,15 +39,50 @@ public final class OpenAiCompatClient {
     }
 
     /**
-     * Sends a chat completion request and returns the first choice content text.
-     *
-     * @throws IOException on network/HTTP/parse failure
+     * Text-only chat completion; returns first choice content.
      */
     public String chat(String system, String user) throws IOException {
+        ObjectNode body = baseBody(system);
+        ObjectNode usr = body.withArray("messages").addObject();
+        usr.put("role", "user");
+        usr.put("content", user == null ? "" : user);
+        return postCompletions(body, TIMEOUT);
+    }
+
+    /**
+     * Multimodal chat: text + one base64 image (data URL assembled here).
+     *
+     * @param mediaType e.g. {@code image/png} or {@code image/jpeg}
+     * @param base64    raw base64 payload (no data: prefix)
+     */
+    public String chatWithImage(String system, String userText, String mediaType, String base64)
+            throws IOException {
+        if (base64 == null || base64.isBlank()) {
+            throw new IOException("Image payload is empty");
+        }
+        String mt = mediaType == null || mediaType.isBlank() ? "image/png" : mediaType;
+        String dataUrl = "data:" + mt + ";base64," + base64;
+
+        ObjectNode body = baseBody(system);
+        ObjectNode usr = body.withArray("messages").addObject();
+        usr.put("role", "user");
+        ArrayNode content = usr.putArray("content");
+        ObjectNode textPart = content.addObject();
+        textPart.put("type", "text");
+        textPart.put("text", userText == null ? "" : userText);
+        ObjectNode imgPart = content.addObject();
+        imgPart.put("type", "image_url");
+        ObjectNode imageUrl = imgPart.putObject("image_url");
+        imageUrl.put("url", dataUrl);
+        imageUrl.put("detail", "high");
+
+        return postCompletions(body, VISION_TIMEOUT);
+    }
+
+    private ObjectNode baseBody(String system) throws IOException {
         if (!settings.isLlmAvailable()) {
             throw new IOException("LLM not available (missing API key or provider NONE)");
         }
-
         ObjectNode body = MAPPER.createObjectNode();
         body.put("model", settings.model());
         ArrayNode messages = body.putArray("messages");
@@ -57,23 +91,26 @@ public final class OpenAiCompatClient {
             sys.put("role", "system");
             sys.put("content", system);
         }
-        ObjectNode usr = messages.addObject();
-        usr.put("role", "user");
-        usr.put("content", user == null ? "" : user);
         body.put("temperature", 0.2);
+        return body;
+    }
 
+    private String postCompletions(ObjectNode body, Duration timeout) throws IOException {
         String url = settings.baseUrl() + "/chat/completions";
         byte[] payload = MAPPER.writeValueAsBytes(body);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(TIMEOUT)
+                .timeout(timeout)
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + settings.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
                 .build();
 
-        log.debug("POST chat/completions model={} url={}", settings.model(), settings.baseUrl());
+        boolean hasVision = body.path("messages").toString().contains("\"image_url\"");
+        // Do not log request body — may include large base64 images or secrets
+        log.debug("POST chat/completions model={} url={} vision={}",
+                settings.model(), settings.baseUrl(), hasVision);
 
         HttpResponse<String> response;
         try {
@@ -86,7 +123,6 @@ public final class OpenAiCompatClient {
         int code = response.statusCode();
         String respBody = response.body() == null ? "" : response.body();
         if (code < 200 || code >= 300) {
-            // Never include Authorization; truncate body for log safety
             String snippet = respBody.length() > 200 ? respBody.substring(0, 200) + "…" : respBody;
             log.warn("LLM HTTP {} from {} — body snippet: {}", code, settings.baseUrl(), snippet);
             throw new IOException("LLM HTTP " + code + ": " + snippet);

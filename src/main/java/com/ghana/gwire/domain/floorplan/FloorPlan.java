@@ -132,6 +132,13 @@ public final class FloorPlan {
         devices.clear();
     }
 
+    /** Clears rooms, walls, and openings; keeps devices and background. */
+    public void clearRoomsWallsOpenings() {
+        walls.clear();
+        rooms.clear();
+        openings.clear();
+    }
+
     public void clearAll() {
         clearGeometry();
         background = null;

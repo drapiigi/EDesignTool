@@ -65,6 +65,8 @@ public class AppMenuBar {
         design.getItems().addAll(
                 item("_AI Generate Design…", KeyCode.G, true, window::aiGenerateDesign),
                 item("AI Generate (rules _only)…", null, false, window::aiGenerateDesignRulesOnly),
+                item("Analyze Floor Plan (_Vision)…", null, false, window::analyzeFloorPlanVision),
+                item("Vision + AI Design (_full)…", null, false, window::visionThenAiDesign),
                 new SeparatorMenuItem(),
                 item("Tool: _Select", null, false, () -> window.setTool(DrawTool.SELECT)),
                 item("Tool: _Wall", null, false, () -> window.setTool(DrawTool.WALL)),

@@ -4,6 +4,7 @@ import com.ghana.gwire.GWireApp;
 import com.ghana.gwire.ai.AiDesignPlan;
 import com.ghana.gwire.ai.AiDesignService;
 import com.ghana.gwire.ai.AiSettings;
+import com.ghana.gwire.ai.vision.VisionFloorPlanResult;
 import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
@@ -277,6 +278,178 @@ public class MainWindow {
     /** Force offline rule-based placement (no LLM call). */
     public void aiGenerateDesignRulesOnly() {
         runAiGenerate(true);
+    }
+
+    /**
+     * Vision-analyse the imported floor-plan background and create rooms/walls.
+     * Requires File → Import Floor Plan first. Uses LLM vision if API key set;
+     * otherwise places one offline full-plan room fallback.
+     */
+    public void analyzeFloorPlanVision() {
+        if (project == null) {
+            statusBar.setMessage("No project.");
+            return;
+        }
+        if (project.floorPlan().background() == null) {
+            Alert warn = new Alert(Alert.AlertType.WARNING);
+            warn.initOwner(stage);
+            warn.setTitle("Vision analysis");
+            warn.setHeaderText("No floor-plan image imported");
+            warn.setContentText(
+                    "Import a plan first (File → Import Floor Plan or toolbar Import plan…),\n"
+                            + "then run Design → Analyze Floor Plan (Vision)."
+            );
+            warn.showAndWait();
+            return;
+        }
+
+        boolean clearGeom = true;
+        if (!project.floorPlan().rooms().isEmpty() || !project.floorPlan().walls().isEmpty()) {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.initOwner(stage);
+            confirm.setTitle("Vision analysis");
+            confirm.setHeaderText("Replace existing rooms/walls?");
+            confirm.setContentText(
+                    "Yes = clear rooms, walls, and openings, then apply vision result.\n"
+                            + "No = append detected rooms/walls.\n"
+                            + "Cancel = abort."
+            );
+            confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+            var choice = confirm.showAndWait();
+            if (choice.isEmpty() || choice.get() == ButtonType.CANCEL) {
+                return;
+            }
+            clearGeom = choice.get() == ButtonType.YES;
+        }
+
+        try {
+            statusBar.setMessage("Analysing floor plan with vision…");
+            workspace.getHistory().push(project.floorPlan());
+            AiDesignService ai = new AiDesignService(AiSettings.load());
+            var result = ai.analyzeAndApplyVision(project, clearGeom, false);
+            if (result.isEmpty()) {
+                statusBar.setMessage("Vision analysis failed.");
+                Alert err = new Alert(Alert.AlertType.ERROR);
+                err.initOwner(stage);
+                err.setTitle("Vision analysis");
+                err.setHeaderText("Could not analyse floor plan");
+                err.setContentText(
+                        "Check that the background image file still exists on disk.\n"
+                                + "For full room detection set GWIRE_AI_API_KEY and a vision model "
+                                + "(e.g. gpt-4o-mini). Offline mode only creates one covering room."
+                );
+                err.showAndWait();
+                return;
+            }
+            VisionFloorPlanResult r = result.get();
+            workspace.getCanvas().fitToWindow();
+            workspace.getCanvas().redraw();
+            boqPanel.refresh();
+            if (project.lastReport() != null) {
+                project.setLastReport(null);
+                calcResultsPanel.clear();
+            }
+            refreshTitleAndStatus();
+            statusBar.setMessage("Vision: " + r.summary() + " · Ctrl+Z to undo");
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.initOwner(stage);
+            info.setTitle("Vision analysis");
+            info.setHeaderText(r.summary());
+            String body = r.notes()
+                    + "\n\nNext: Design → AI Generate Design to place electrical devices, "
+                    + "or Design → Vision + AI Design (full) to do both.";
+            if (body.length() > 1400) {
+                body = body.substring(0, 1400) + "\n…";
+            }
+            info.setContentText(body);
+            info.showAndWait();
+        } catch (Exception ex) {
+            log.error("Vision analysis failed", ex);
+            statusBar.setMessage("Vision failed: " + ex.getMessage());
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.initOwner(stage);
+            alert.setTitle("Vision analysis failed");
+            alert.setHeaderText("Could not analyse floor plan");
+            alert.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    /**
+     * Vision rooms from background, then electrical AI design placements.
+     */
+    public void visionThenAiDesign() {
+        if (project == null) {
+            statusBar.setMessage("No project.");
+            return;
+        }
+        if (project.floorPlan().background() == null) {
+            Alert warn = new Alert(Alert.AlertType.WARNING);
+            warn.initOwner(stage);
+            warn.setTitle("Vision + AI Design");
+            warn.setHeaderText("No floor-plan image imported");
+            warn.setContentText("Import a plan first, then run this command.");
+            warn.showAndWait();
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.initOwner(stage);
+        confirm.setTitle("Vision + AI Design");
+        confirm.setHeaderText("Replace rooms/walls and devices?");
+        confirm.setContentText(
+                "This will re-detect rooms from the imported plan image and place electrical devices.\n"
+                        + "Existing rooms, walls, openings, and devices will be replaced.\n\n"
+                        + "Continue?"
+        );
+        var go = confirm.showAndWait();
+        if (go.isEmpty() || go.get() != ButtonType.OK) {
+            return;
+        }
+
+        try {
+            statusBar.setMessage("Vision + AI design pipeline running…");
+            workspace.getHistory().push(project.floorPlan());
+            AiDesignService ai = new AiDesignService(AiSettings.load());
+            int devices = ai.generateFromVisionBackground(project, LibraryBootstrap.get(), true, true);
+            if (devices < 0) {
+                statusBar.setMessage("Vision + AI design failed (no analysis result).");
+                return;
+            }
+            workspace.getCanvas().fitToWindow();
+            workspace.getCanvas().redraw();
+            boqPanel.refresh();
+            if (project.lastReport() != null) {
+                project.setLastReport(null);
+                calcResultsPanel.clear();
+            }
+            refreshTitleAndStatus();
+            statusBar.setMessage(String.format(
+                    "Vision + AI design: %d room(s), %d device(s) · Ctrl+Z to undo",
+                    project.floorPlan().rooms().size(), devices
+            ));
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.initOwner(stage);
+            info.setTitle("Vision + AI Design");
+            info.setHeaderText(String.format(
+                    "%d room(s) · %d device(s)",
+                    project.floorPlan().rooms().size(), devices
+            ));
+            info.setContentText(
+                    "Rooms detected from the imported plan; electrical devices placed.\n"
+                            + "Run Tools → Recalculate Loads for cable sizing and L.I. 2008 checks."
+            );
+            info.showAndWait();
+        } catch (Exception ex) {
+            log.error("Vision + AI design failed", ex);
+            statusBar.setMessage("Vision + AI design failed: " + ex.getMessage());
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.initOwner(stage);
+            alert.setTitle("Vision + AI Design failed");
+            alert.setHeaderText("Pipeline error");
+            alert.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            alert.showAndWait();
+        }
     }
 
     private void runAiGenerate(boolean rulesOnly) {

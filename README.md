@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a compliant design with
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, Apache PDFBox |
-| **Status** | Phase 5 — AI design generation |
+| **Status** | Phase 5 — AI design + vision floor-plan analysis |
 
 See **[AGENTS.md](AGENTS.md)** for architecture, phases, and agent workflow.
 
@@ -61,6 +61,7 @@ Prefer `mvn javafx:run` during development. Installers via **jpackage** land in 
 - Drag-and-drop place · drag devices to move
 - Load calc, diversity, cable sizing, voltage drop, standards checks
 - **AI Generate Design** (offline rules always; optional LLM)
+- **Vision floor-plan analysis** (detect rooms from imported image/PDF; optional LLM vision)
 - **AI Co-pilot** for simple natural-language edits
 - BOQ (devices + estimated circuit cables)
 
@@ -72,6 +73,8 @@ Prefer `mvn javafx:run` during development. Installers via **jpackage** land in 
 | Place symbol | Drag from library onto canvas |
 | Move symbol | **Select** → drag device |
 | **AI design** | Draw rooms → **Design → AI Generate Design** (Ctrl+G) |
+| **Vision rooms** | Import plan → **Design → Analyze Floor Plan (Vision)** |
+| **Vision + design** | Import plan → **Design → Vision + AI Design (full)** |
 | Rules only | **Design → AI Generate (rules only)** |
 | Co-pilot | **Tools → AI Co-pilot Chat** (e.g. `add socket in Living`) |
 | Recalculate | **Tools → Recalculate Loads** (Ctrl+R) |
@@ -85,7 +88,7 @@ Offline **rule-based** generation works with no API key.
 # Environment (examples)
 export GWIRE_AI_PROVIDER=openai   # or xai | none
 export GWIRE_AI_API_KEY=sk-...
-export GWIRE_AI_MODEL=gpt-4o-mini
+export GWIRE_AI_MODEL=gpt-4o-mini   # vision-capable model recommended
 # export GWIRE_AI_BASE_URL=https://api.x.ai/v1   # for xAI Grok
 
 # Or file: ~/.gwire/ai.properties
@@ -94,6 +97,8 @@ export GWIRE_AI_MODEL=gpt-4o-mini
 # model=gpt-4o-mini
 # baseUrl=https://api.openai.com/v1
 ```
+
+Without an API key, vision still runs an **offline fallback** (one room covering the plan) so you can continue with rules-based electrical placement.
 
 Never commit API keys. Component library DB: `~/.gwire/library`.
 

@@ -55,7 +55,7 @@
 | 2 | Floor plan module (draw + image/PDF import) | **Done** |
 | 3 | Electrical symbol library + starter component DB | **Done** |
 | 4 | Calculation & standards engine | **Done** |
-| 5 | AI generation integration | **Done** (rules + optional LLM + co-pilot) |
+| 5 | AI generation integration | **Done** (rules + optional LLM + co-pilot + vision) |
 | 6 | Real-time updates, BOQ, validation | Planned |
 | 7 | PDF export & reporting | Planned |
 | 8 | Packaging, polish, sample 3-bed house, docs | Planned |
@@ -160,10 +160,10 @@
 - Apply plan → `PlacedDevice`s; simple co-pilot commands
 - UI: Design → AI Generate Design / rules only; Tools → AI Co-pilot Chat
 - Config: env (`GWIRE_AI_*`, `OPENAI_API_KEY`, `XAI_API_KEY`) and `~/.gwire/ai.properties` (never commit keys)
+- **Vision floor-plan analysis** (`ai.vision.*`): encode/downscale image, multimodal chat, parse rooms/walls/openings (normalized coords → mm), apply geometry; offline single-room fallback; UI Design → Analyze Floor Plan (Vision) / Vision + AI Design
 
 ### Open tasks
 
-- [ ] Phase 5 follow-up: vision floor-plan understanding (optional)
 - [ ] Phase 6: project save/load, richer live model updates
 - [ ] Phase 7: PDF exports (plans, SLD, schedules, BOQ, checklist)
 - [ ] Phase 8: jpackage installers, sample project, full docs
