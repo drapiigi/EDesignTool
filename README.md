@@ -80,7 +80,8 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 | Zoom | Mouse wheel · View menu |
 | Delete | Select element → Delete |
 | Import plan | Toolbar **Import plan…** or File → Import Floor Plan |
-| Place symbol | Library panel → select → **Place on plan** → click canvas |
+| Place symbol | **Drag** from symbol library onto the canvas |
+| Move symbol | **Select** tool → drag a placed device to a new position |
 
 Component library DB (auto-seeded): `~/.gwire/library`
 

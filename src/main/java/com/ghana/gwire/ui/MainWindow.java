@@ -2,7 +2,6 @@ package com.ghana.gwire.ui;
 
 import com.ghana.gwire.GWireApp;
 import com.ghana.gwire.db.LibraryBootstrap;
-import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
@@ -60,7 +59,6 @@ public class MainWindow {
         });
 
         symbolLibraryPanel.setStatusSink(statusBar::setMessage);
-        symbolLibraryPanel.setPlaceListener(this::placeComponent);
 
         SplitPane rightSplit = new SplitPane(propertiesPanel.getRoot(), boqPanel.getRoot());
         rightSplit.setOrientation(Orientation.VERTICAL);
@@ -94,7 +92,10 @@ public class MainWindow {
         } catch (Exception ignored) {
             // library optional at UI build time
         }
-        statusBar.setMessage("Phase 3 ready — place symbols from the library (" + count + " components).");
+        statusBar.setMessage(
+                "Drag components from the library onto the plan · drag placed symbols to move ("
+                        + count + " catalogue items)."
+        );
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
     }
 
@@ -169,14 +170,6 @@ public class MainWindow {
         statusBar.setMessage("Component library reloaded ("
                 + (LibraryBootstrap.get() == null ? 0 : LibraryBootstrap.get().count())
                 + " items)");
-    }
-
-    public void placeComponent(ElectricalComponent component) {
-        if (component == null) {
-            return;
-        }
-        workspace.getCanvas().beginPlaceComponent(component);
-        setTool(DrawTool.PLACE_DEVICE);
     }
 
     public void setTool(DrawTool tool) {

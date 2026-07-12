@@ -4,6 +4,7 @@ import com.ghana.gwire.db.ComponentLibraryService;
 import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.components.ComponentCategory;
 import com.ghana.gwire.domain.components.ElectricalComponent;
+import com.ghana.gwire.ui.symbols.ComponentDragFormats;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -13,13 +14,16 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 import java.util.function.Consumer;
 
 /**
- * Browse Ghana starter component catalogue; select an item to place on the plan.
+ * Browse Ghana starter component catalogue; drag items onto the floor plan to place them.
  */
 public class SymbolLibraryPanel {
 
@@ -31,8 +35,6 @@ public class SymbolLibraryPanel {
     private final TextField searchField;
     private final Label detailLabel;
 
-    private Consumer<ElectricalComponent> placeListener = c -> {
-    };
     private Consumer<String> statusSink = s -> {
     };
 
@@ -61,6 +63,27 @@ public class SymbolLibraryPanel {
 
         listView = new ListView<>(filtered);
         listView.setCellFactory(lv -> new ListCell<>() {
+            {
+                setOnDragDetected(e -> {
+                    ElectricalComponent item = getItem();
+                    if (item == null || isEmpty()) {
+                        return;
+                    }
+                    Dragboard db = startDragAndDrop(TransferMode.COPY);
+                    ClipboardContent content = new ClipboardContent();
+                    content.put(ComponentDragFormats.COMPONENT_ID, item.id());
+                    content.putString(item.id());
+                    db.setContent(content);
+                    try {
+                        db.setDragView(snapshot(null, null), e.getX(), e.getY());
+                    } catch (Exception ignored) {
+                        // drag view is cosmetic
+                    }
+                    statusSink.accept("Drop on canvas to place: " + item.name());
+                    e.consume();
+                });
+            }
+
             @Override
             protected void updateItem(ElectricalComponent item, boolean empty) {
                 super.updateItem(item, empty);
@@ -74,29 +97,23 @@ public class SymbolLibraryPanel {
             }
         });
         listView.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> showDetail(b));
-        listView.setOnMouseClicked(e -> {
-            if (e.getClickCount() == 2) {
-                placeSelected();
-            }
-        });
         VBox.setVgrow(listView, Priority.ALWAYS);
 
         detailLabel = new Label(lib == null
                 ? "Component library unavailable."
-                : lib.count() + " catalogue items · double-click or Place to insert");
+                : lib.count() + " catalogue items · drag onto the canvas to place");
         detailLabel.getStyleClass().add("panel-body");
         detailLabel.setWrapText(true);
 
-        javafx.scene.control.Button placeBtn = new javafx.scene.control.Button("Place on plan");
-        placeBtn.getStyleClass().add("tool-action");
-        placeBtn.setMaxWidth(Double.MAX_VALUE);
-        placeBtn.setOnAction(e -> placeSelected());
-
-        Label hint = new Label("L.I. 2008 / BS 1363 catalogue · costs editable later");
+        Label hint = new Label(
+                "Drag a component onto the plan.\n"
+                        + "On the canvas: drag a placed symbol to move it.\n"
+                        + "L.I. 2008 / BS 1363 catalogue · costs editable later"
+        );
         hint.getStyleClass().add("panel-footer");
         hint.setWrapText(true);
 
-        VBox content = new VBox(8, title, categoryCombo, searchField, listView, detailLabel, placeBtn, hint);
+        VBox content = new VBox(8, title, categoryCombo, searchField, listView, detailLabel, hint);
         content.setPadding(new Insets(12));
         content.getStyleClass().add("panel-content");
         VBox.setVgrow(listView, Priority.ALWAYS);
@@ -111,35 +128,28 @@ public class SymbolLibraryPanel {
         return root;
     }
 
-    public void setPlaceListener(Consumer<ElectricalComponent> placeListener) {
-        this.placeListener = placeListener == null ? c -> {
-        } : placeListener;
-    }
-
     public void setStatusSink(Consumer<String> statusSink) {
         this.statusSink = statusSink == null ? s -> {
         } : statusSink;
+    }
+
+    /** @deprecated Placement is drag-and-drop; kept for menu reload only. */
+    public void setPlaceListener(Consumer<ElectricalComponent> placeListener) {
+        // no-op: drag-and-drop is the primary placement path
     }
 
     public void reload() {
         ComponentLibraryService lib = safeLibrary();
         master.setAll(lib == null ? java.util.List.of() : lib.listAll());
         applyFilter();
-    }
-
-    private void placeSelected() {
-        ElectricalComponent c = listView.getSelectionModel().getSelectedItem();
-        if (c == null) {
-            statusSink.accept("Select a component first");
-            return;
-        }
-        placeListener.accept(c);
-        statusSink.accept("Place mode: click canvas to insert " + c.name());
+        detailLabel.setText(lib == null
+                ? "Component library unavailable."
+                : lib.count() + " catalogue items · drag onto the canvas to place");
     }
 
     private void showDetail(ElectricalComponent c) {
         if (c == null) {
-            detailLabel.setText("Select a component to place.");
+            detailLabel.setText("Select a component, then drag it onto the plan.");
             return;
         }
         StringBuilder sb = new StringBuilder();
@@ -156,6 +166,7 @@ public class SymbolLibraryPanel {
         if (c.ghanaReference() != null) {
             sb.append(c.ghanaReference());
         }
+        sb.append("\n\nDrag onto the canvas to place.");
         detailLabel.setText(sb.toString().trim());
     }
 

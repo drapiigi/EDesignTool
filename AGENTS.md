@@ -140,9 +140,9 @@
 - H2 component library at `~/.gwire/library` with Ghana starter seed (**73** items)
 - Domain: `ElectricalComponent`, `ComponentCategory`, `PlacedDevice`
 - `ComponentLibraryService` / repository / seed / `LibraryBootstrap`
-- Symbol library panel (filter, search, place)
+- Symbol library panel (filter, search; **drag-and-drop** onto canvas)
 - `SymbolRenderer` (IEC/BS-inspired glyphs by `symbolKey`)
-- Canvas place tool + device hit-test/select/delete
+- Canvas: drop to place · **drag placed devices to move** (live, grid snap, undo)
 - BOQ panel counts placed devices with GHS costs from catalogue
 
 ### Open tasks

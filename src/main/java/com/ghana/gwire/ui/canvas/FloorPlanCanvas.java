@@ -10,18 +10,23 @@ import com.ghana.gwire.domain.floorplan.Room;
 import com.ghana.gwire.domain.floorplan.Wall;
 import com.ghana.gwire.domain.geometry.Segment2;
 import com.ghana.gwire.domain.geometry.Vec2;
+import com.ghana.gwire.db.ComponentLibraryService;
+import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.service.history.FloorPlanHistory;
+import com.ghana.gwire.ui.symbols.ComponentDragFormats;
 import com.ghana.gwire.ui.symbols.SymbolRenderer;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
+import javafx.scene.input.DragEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -30,10 +35,11 @@ import javafx.scene.text.FontWeight;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * High-performance-ish floor plan canvas: grid, pan/zoom, draw walls/rooms/openings.
+ * Floor plan canvas: grid, pan/zoom, walls/rooms/openings, drag-drop place & move devices.
  * World units = millimetres. Screen mapping via scale (px per mm) and pan offsets.
  */
 public class FloorPlanCanvas {
@@ -69,8 +75,15 @@ public class FloorPlanCanvas {
     private Vec2 previewEnd;
     private Vec2 roomPreviewCorner;
 
-    /** Catalogue component pending placement (PLACE_DEVICE tool). */
+    /** Catalogue component pending placement (PLACE_DEVICE tool fallback). */
     private ElectricalComponent pendingComponent;
+
+    /** Live drag-move of a placed device (SELECT tool). */
+    private PlacedDevice movingDevice;
+    private boolean moveHistoryRecorded;
+    private double moveGrabOffsetX;
+    private double moveGrabOffsetY;
+    private boolean dropHighlight;
 
     public FloorPlanCanvas(FloorPlanHistory history) {
         this.history = Objects.requireNonNull(history);
@@ -87,6 +100,12 @@ public class FloorPlanCanvas {
         canvas.addEventHandler(MouseEvent.MOUSE_RELEASED, this::onRelease);
         canvas.addEventHandler(MouseEvent.MOUSE_MOVED, this::onMove);
         canvas.addEventHandler(ScrollEvent.SCROLL, this::onScroll);
+
+        // Drag-and-drop from symbol library
+        canvas.setOnDragOver(this::onExternalDragOver);
+        canvas.setOnDragEntered(this::onExternalDragEntered);
+        canvas.setOnDragExited(this::onExternalDragExited);
+        canvas.setOnDragDropped(this::onExternalDragDropped);
 
         root.setFocusTraversable(true);
         root.addEventHandler(KeyEvent.KEY_PRESSED, this::onKey);
@@ -116,12 +135,31 @@ public class FloorPlanCanvas {
     }
 
     /**
-     * Arms place mode for a catalogue component; next primary click inserts it.
+     * Arms place mode for a catalogue component (fallback if drag-and-drop is not used).
+     * Prefer dragging from the symbol library onto the canvas.
      */
     public void beginPlaceComponent(ElectricalComponent component) {
         this.pendingComponent = Objects.requireNonNull(component, "component");
         setTool(DrawTool.PLACE_DEVICE);
-        status("Click canvas to place: " + component.name());
+        status("Drag from library preferred — or click canvas to place: " + component.name());
+    }
+
+    /**
+     * Places a catalogue component at world coordinates (used by drag-drop and place tool).
+     */
+    public PlacedDevice placeComponentAt(ElectricalComponent component, Vec2 world) {
+        Objects.requireNonNull(component, "component");
+        Vec2 pos = floorPlan.snap(Objects.requireNonNull(world, "world"));
+        history.push(floorPlan);
+        PlacedDevice device = new PlacedDevice(component.id(), component.symbolKey(), pos.x(), pos.y());
+        device.setNameOverride(component.name());
+        floorPlan.hitRoom(pos).ifPresent(r -> device.setRoomId(r.id()));
+        floorPlan.addDevice(device);
+        selection.selectDevice(device);
+        fireSelection();
+        status("Placed " + component.name() + " at (%.0f, %.0f) mm".formatted(pos.x(), pos.y()));
+        redraw();
+        return device;
     }
 
     public ElectricalComponent getPendingComponent() {
@@ -273,6 +311,15 @@ public class FloorPlanCanvas {
         drawOpenings(g);
         drawDevices(g);
         drawPreview(g);
+        if (dropHighlight) {
+            g.setStroke(Color.web("#2f9e6a"));
+            g.setLineWidth(3);
+            g.setLineDashes(8, 6);
+            g.strokeRect(4, 4, w - 8, h - 8);
+            g.setLineDashes(null);
+            g.setFill(Color.web("#2f9e6a", 0.08));
+            g.fillRect(0, 0, w, h);
+        }
         drawHud(g, w, h);
     }
 
@@ -318,7 +365,7 @@ public class FloorPlanCanvas {
         }
 
         switch (getTool()) {
-            case SELECT -> selectAt(world);
+            case SELECT -> beginSelectOrMove(world);
             case WALL -> {
                 if (wallStart == null) {
                     wallStart = world;
@@ -356,6 +403,30 @@ public class FloorPlanCanvas {
             redraw();
             return;
         }
+        // Live move placed device
+        if (movingDevice != null) {
+            Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
+            double nx = world.x() - moveGrabOffsetX;
+            double ny = world.y() - moveGrabOffsetY;
+            Vec2 snapped = floorPlan.snap(new Vec2(nx, ny));
+            if (!moveHistoryRecorded) {
+                history.push(floorPlan);
+                // re-resolve device after deep-copy snapshot of prior state
+                // (movingDevice still references live instance)
+                moveHistoryRecorded = true;
+            }
+            movingDevice.setPosition(snapped.x(), snapped.y());
+            floorPlan.hitRoom(snapped).ifPresentOrElse(
+                    r -> movingDevice.setRoomId(r.id()),
+                    () -> movingDevice.setRoomId(null)
+            );
+            selection.selectDevice(movingDevice);
+            fireSelection();
+            status("Moving %s → (%.0f, %.0f) mm"
+                    .formatted(movingDevice.displayName(), snapped.x(), snapped.y()));
+            redraw();
+            return;
+        }
         Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
         if (getTool() == DrawTool.WALL && wallStart != null) {
             previewEnd = world;
@@ -369,6 +440,18 @@ public class FloorPlanCanvas {
     private void onRelease(MouseEvent e) {
         if (panning) {
             panning = false;
+            return;
+        }
+        if (movingDevice != null) {
+            PlacedDevice done = movingDevice;
+            movingDevice = null;
+            if (moveHistoryRecorded) {
+                status("Moved %s to (%.0f, %.0f) mm"
+                        .formatted(done.displayName(), done.xMm(), done.yMm()));
+            }
+            moveHistoryRecorded = false;
+            fireSelection();
+            redraw();
             return;
         }
         if (getTool() == DrawTool.ROOM && roomOrigin != null && roomPreviewCorner != null) {
@@ -421,6 +504,26 @@ public class FloorPlanCanvas {
         }
     }
 
+    private void beginSelectOrMove(Vec2 world) {
+        double tol = 200 / Math.max(scale, 0.01);
+        double deviceTol = Math.max(tol, SymbolRenderer.hitRadiusMm());
+        var device = floorPlan.hitDevice(world, deviceTol);
+        if (device.isPresent()) {
+            PlacedDevice d = device.get();
+            selection.selectDevice(d);
+            fireSelection();
+            // Start drag-move: grab offset so symbol doesn't jump under cursor
+            movingDevice = d;
+            moveHistoryRecorded = false;
+            moveGrabOffsetX = world.x() - d.xMm();
+            moveGrabOffsetY = world.y() - d.yMm();
+            status("Drag to move · " + d.displayName());
+            return;
+        }
+        movingDevice = null;
+        selectAt(world);
+    }
+
     private void selectAt(Vec2 world) {
         double tol = 200 / Math.max(scale, 0.01); // ~px tolerance in mm
         double deviceTol = Math.max(tol, SymbolRenderer.hitRadiusMm());
@@ -459,26 +562,85 @@ public class FloorPlanCanvas {
 
     private void placePendingDevice(Vec2 world) {
         if (pendingComponent == null) {
-            status("Choose a component from the symbol library first");
+            status("Drag a component from the symbol library onto the canvas");
             setTool(DrawTool.SELECT);
             return;
         }
-        history.push(floorPlan);
-        PlacedDevice device = new PlacedDevice(
-                pendingComponent.id(),
-                pendingComponent.symbolKey(),
-                world.x(),
-                world.y()
-        );
-        device.setNameOverride(pendingComponent.name());
-        // Assign room if click falls inside one
-        floorPlan.hitRoom(world).ifPresent(r -> device.setRoomId(r.id()));
-        floorPlan.addDevice(device);
-        selection.selectDevice(device);
-        fireSelection();
-        status("Placed " + pendingComponent.name() + " at (%.0f, %.0f) mm"
-                .formatted(world.x(), world.y()));
+        placeComponentAt(pendingComponent, world);
         // Stay in place mode for multi-insert; Esc clears
+    }
+
+    // --- external drag & drop (from symbol library) ---
+
+    private void onExternalDragOver(DragEvent e) {
+        if (hasComponentDrag(e)) {
+            e.acceptTransferModes(TransferMode.COPY);
+            // Live ghost position optional: update highlight only
+        }
+        e.consume();
+    }
+
+    private void onExternalDragEntered(DragEvent e) {
+        if (hasComponentDrag(e)) {
+            dropHighlight = true;
+            redraw();
+        }
+        e.consume();
+    }
+
+    private void onExternalDragExited(DragEvent e) {
+        dropHighlight = false;
+        redraw();
+        e.consume();
+    }
+
+    private void onExternalDragDropped(DragEvent e) {
+        dropHighlight = false;
+        boolean success = false;
+        Optional<ElectricalComponent> component = resolveDraggedComponent(e);
+        if (component.isPresent()) {
+            Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
+            placeComponentAt(component.get(), world);
+            setTool(DrawTool.SELECT);
+            pendingComponent = null;
+            success = true;
+            root.requestFocus();
+        } else {
+            status("Drop failed — unknown component");
+        }
+        e.setDropCompleted(success);
+        e.consume();
+        redraw();
+    }
+
+    private static boolean hasComponentDrag(DragEvent e) {
+        return e.getDragboard().hasContent(ComponentDragFormats.COMPONENT_ID)
+                || e.getDragboard().hasString();
+    }
+
+    private Optional<ElectricalComponent> resolveDraggedComponent(DragEvent e) {
+        String id = null;
+        if (e.getDragboard().hasContent(ComponentDragFormats.COMPONENT_ID)) {
+            Object raw = e.getDragboard().getContent(ComponentDragFormats.COMPONENT_ID);
+            if (raw != null) {
+                id = raw.toString();
+            }
+        }
+        if ((id == null || id.isBlank()) && e.getDragboard().hasString()) {
+            id = e.getDragboard().getString();
+        }
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        ComponentLibraryService lib = LibraryBootstrap.get();
+        if (lib == null) {
+            try {
+                lib = LibraryBootstrap.initialize();
+            } catch (Exception ex) {
+                return Optional.empty();
+            }
+        }
+        return lib.getById(id.trim());
     }
 
     private void commitWall(Vec2 a, Vec2 b) {
@@ -535,6 +697,8 @@ public class FloorPlanCanvas {
         roomOrigin = null;
         roomPreviewCorner = null;
         panning = false;
+        movingDevice = null;
+        moveHistoryRecorded = false;
         if (getTool() != DrawTool.PLACE_DEVICE) {
             pendingComponent = null;
         }
@@ -727,7 +891,9 @@ public class FloorPlanCanvas {
         g.fillRoundRect(10, h - 34, 360, 24, 6, 6);
         g.setFill(Color.web("#9aa6b8"));
         g.setFont(Font.font(11));
-        String place = pendingComponent != null ? " · placing " + pendingComponent.name() : "";
+        String place = movingDevice != null
+                ? " · dragging " + movingDevice.displayName()
+                : (dropHighlight ? " · drop to place" : "");
         g.fillText("Grid %.0f mm · snap %s · %.3f px/mm · %d devices%s".formatted(
                         floorPlan.gridMm(),
                         floorPlan.isSnapToGrid() ? "on" : "off",
