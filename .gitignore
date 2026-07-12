@@ -1,0 +1,45 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+nbproject/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime / local
+*.log
+.h2.db
+*.mv.db
+*.trace.db
+.env
+.env.*
+!/.env.example
+
+# Packaging output
+dist/
+installer/
+*.AppImage
+*.deb
+*.exe
+*.msi
