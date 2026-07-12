@@ -2,15 +2,27 @@ package com.ghana.gwire.ui.symbols;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.StrokeLineCap;
+import javafx.scene.shape.StrokeLineJoin;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
 
 /**
- * Draws IEC/BS-inspired electrical symbols on the floor-plan canvas.
- * Coordinates are screen pixels; {@code size} is the symbol diameter/width in px.
+ * CAD-quality electrical symbols inspired by IEC 60617 / BS 3939 conventions
+ * used on architectural lighting & power drawings.
+ *
+ * <p>Drawn in local coordinates centred at (0,0); caller applies translate/rotate.
+ * White/cyan strokes on dark plans for high contrast; selected state uses amber.
  */
 public final class SymbolRenderer {
+
+    private static final Color STROKE = Color.web("#eceff4");
+    private static final Color FILL = Color.web("#0b0f14", 0.92);
+    private static final Color ACCENT = Color.web("#88c0d0");
+    private static final Color SELECT = Color.web("#ebcb8b");
+    private static final Color SELECT_FILL = Color.web("#ebcb8b", 0.18);
+    private static final Color LABEL = Color.web("#c8d0dc");
 
     private SymbolRenderer() {
     }
@@ -30,32 +42,49 @@ public final class SymbolRenderer {
         g.save();
         g.translate(cx, cy);
         g.rotate(rotationDeg);
+        g.setLineCap(StrokeLineCap.ROUND);
+        g.setLineJoin(StrokeLineJoin.ROUND);
+        g.setImageSmoothing(true);
 
-        Color stroke = selected ? Color.web("#f0b429") : Color.web("#e8edf5");
-        Color fill = selected ? Color.web("#f0b429", 0.25) : Color.web("#1a2030", 0.85);
+        Color stroke = selected ? SELECT : STROKE;
+        Color fill = selected ? SELECT_FILL : FILL;
+        double lw = selected ? Math.max(1.8, size * 0.07) : Math.max(1.35, size * 0.055);
         g.setStroke(stroke);
         g.setFill(fill);
-        g.setLineWidth(selected ? 2.2 : 1.6);
+        g.setLineWidth(lw);
+
+        // Selection halo
+        if (selected) {
+            g.setStroke(SELECT);
+            g.setLineWidth(lw + 2.5);
+            g.setGlobalAlpha(0.35);
+            g.strokeOval(-size * 0.55, -size * 0.55, size * 1.1, size * 1.1);
+            g.setGlobalAlpha(1.0);
+            g.setStroke(stroke);
+            g.setLineWidth(lw);
+        }
 
         String key = symbolKey.toLowerCase();
         if (key.startsWith("socket")) {
-            drawSocket(g, size, key.contains("2g"), key.contains("industrial"));
+            drawSocket(g, size, key.contains("2g"), key.contains("industrial") || key.contains("15a"));
         } else if (key.startsWith("switch")) {
-            drawSwitch(g, size, key.contains("dimmer"), key.contains("dp") || key.contains("20a") || key.contains("45a"));
+            drawSwitch(g, size, key.contains("dimmer"),
+                    key.contains("dp") || key.contains("20a") || key.contains("45a"),
+                    key.contains("intermediate") || key.contains("int"));
         } else if (key.startsWith("light")) {
             drawLight(g, size, key);
         } else if (key.startsWith("mcb") || key.startsWith("rcbo")) {
-            drawBreaker(g, size, key.contains("3p") ? "3P" : "1P");
+            drawBreaker(g, size, key.contains("3p") ? "3P" : "1P", key.startsWith("rcbo"));
         } else if (key.startsWith("rccb")) {
-            drawBreaker(g, size, "RCD");
+            drawRcd(g, size, key.contains("100") ? "100mA" : "30mA");
         } else if (key.startsWith("db")) {
             drawDb(g, size);
         } else if (key.startsWith("cable")) {
             drawCable(g, size);
         } else if (key.startsWith("earth")) {
-            drawEarth(g, size);
+            drawEarth(g, size, key.contains("rod"), key.contains("bond") || key.contains("bar"));
         } else if (key.startsWith("conduit") || key.startsWith("trunking")) {
-            drawConduit(g, size);
+            drawConduit(g, size, key.contains("gi") || key.contains("steel"));
         } else if (key.startsWith("junction")) {
             drawJunction(g, size);
         } else if (key.startsWith("isolator") || key.startsWith("changeover")) {
@@ -71,142 +100,234 @@ public final class SymbolRenderer {
         g.restore();
     }
 
+    // --- IEC-style symbols ---
+
+    /** BS 1363 socket outlet: circle with three-pin mark (architectural plan symbol). */
     private static void drawSocket(GraphicsContext g, double size, boolean twin, boolean industrial) {
-        double r = size * 0.45;
+        double r = size * 0.42;
         g.fillOval(-r, -r, r * 2, r * 2);
         g.strokeOval(-r, -r, r * 2, r * 2);
-        if (industrial) {
-            g.strokeOval(-r * 0.55, -r * 0.55, r * 1.1, r * 1.1);
-        }
-        // BS 1363 style pin marks
-        double pin = r * 0.18;
+        // earth pin (top) + live/neutral
+        double pinR = r * 0.11;
         g.setFill(g.getStroke());
-        g.fillOval(-pin * 2.2, -pin * 0.5, pin, pin);
-        g.fillOval(pin * 1.2, -pin * 0.5, pin, pin);
-        g.fillOval(-pin * 0.5, pin * 1.2, pin, pin);
+        g.fillOval(-pinR, -r * 0.55, pinR * 2, pinR * 2); // earth
+        g.fillOval(-r * 0.38 - pinR, r * 0.22, pinR * 2, pinR * 2);
+        g.fillOval(r * 0.38 - pinR, r * 0.22, pinR * 2, pinR * 2);
+        if (industrial) {
+            g.strokeOval(-r * 0.72, -r * 0.72, r * 1.44, r * 1.44);
+        }
         if (twin) {
-            g.strokeOval(r * 0.85, -r * 0.35, r * 0.7, r * 0.7);
+            // second outlet offset (twin gang on plan)
+            g.setFill(FILL);
+            g.fillOval(r * 0.55, -r * 0.35, r * 0.85, r * 0.85);
+            g.strokeOval(r * 0.55, -r * 0.35, r * 0.85, r * 0.85);
+            double r2 = r * 0.42;
+            double cx = r * 0.55 + r * 0.425;
+            double cy = -r * 0.35 + r * 0.425;
+            g.setFill(g.getStroke());
+            g.fillOval(cx - pinR * 0.8, cy - r2 * 0.4, pinR * 1.6, pinR * 1.6);
         }
-        label(g, twin ? "2×13A" : (industrial ? "IEC" : "13A"), 0, r + 10, size);
+        label(g, twin ? "2G" : (industrial ? "IND" : "13A"), 0, r + size * 0.28, size);
     }
 
-    private static void drawSwitch(GraphicsContext g, double size, boolean dimmer, boolean dp) {
-        double s = size * 0.4;
-        g.fillRoundRect(-s, -s, s * 2, s * 2, 4, 4);
-        g.strokeRoundRect(-s, -s, s * 2, s * 2, 4, 4);
-        g.strokeLine(-s * 0.5, 0, s * 0.55, -s * 0.45);
-        g.fillOval(s * 0.45, -s * 0.55, s * 0.25, s * 0.25);
+    /** Single-pole switch: square plate + angled lever (plan symbol). */
+    private static void drawSwitch(GraphicsContext g, double size, boolean dimmer, boolean dp, boolean intermediate) {
+        double s = size * 0.38;
+        g.fillRect(-s, -s, s * 2, s * 2);
+        g.strokeRect(-s, -s, s * 2, s * 2);
+        // switch lever
+        g.strokeLine(-s * 0.55, s * 0.15, s * 0.45, -s * 0.55);
+        g.fillOval(s * 0.38, -s * 0.62, s * 0.22, s * 0.22);
+        if (dp) {
+            g.strokeLine(-s * 0.55, s * 0.45, s * 0.45, -s * 0.25);
+        }
         if (dimmer) {
-            g.strokeOval(-s * 0.35, s * 0.15, s * 0.7, s * 0.55);
+            g.strokeArc(-s * 0.45, s * 0.05, s * 0.9, s * 0.7, 200, 140, javafx.scene.shape.ArcType.OPEN);
         }
-        label(g, dp ? "DP" : "SW", 0, s + 10, size);
+        if (intermediate) {
+            g.strokeLine(-s * 0.3, -s * 0.15, s * 0.3, s * 0.35);
+        }
+        label(g, dp ? "DP" : (dimmer ? "DIM" : "S"), 0, s + size * 0.28, size);
     }
 
+    /** Luminaire: circle with cross (IEC) + variants. */
     private static void drawLight(GraphicsContext g, double size, String key) {
-        double r = size * 0.4;
+        double r = size * 0.40;
+        g.fillOval(-r, -r, r * 2, r * 2);
         g.strokeOval(-r, -r, r * 2, r * 2);
-        g.strokeLine(-r * 0.65, -r * 0.65, r * 0.65, r * 0.65);
-        g.strokeLine(r * 0.65, -r * 0.65, -r * 0.65, r * 0.65);
+        double c = r * 0.62;
+        g.strokeLine(-c, -c, c, c);
+        g.strokeLine(c, -c, -c, c);
         if (key.contains("fluorescent") || key.contains("panel")) {
-            g.strokeRect(-r * 1.1, -r * 0.35, r * 2.2, r * 0.7);
+            g.strokeRect(-r * 1.25, -r * 0.38, r * 2.5, r * 0.76);
         }
         if (key.contains("bulkhead")) {
-            g.strokeOval(-r * 1.15, -r * 1.15, r * 2.3, r * 2.3);
+            g.strokeOval(-r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
+            // mounting lugs
+            g.strokeLine(-r * 1.2, 0, -r * 1.45, 0);
+            g.strokeLine(r * 1.2, 0, r * 1.45, 0);
         }
-        label(g, "L", 0, r + 10, size);
+        if (key.contains("led") || key.contains("bulb")) {
+            // small rays
+            for (int i = 0; i < 4; i++) {
+                double a = Math.toRadians(i * 90 + 45);
+                g.strokeLine(Math.cos(a) * r * 1.05, Math.sin(a) * r * 1.05,
+                        Math.cos(a) * r * 1.28, Math.sin(a) * r * 1.28);
+            }
+        }
+        label(g, key.contains("bulk") ? "BH" : "L", 0, r + size * 0.28, size);
     }
 
-    private static void drawBreaker(GraphicsContext g, double size, String tag) {
-        double w = size * 0.55;
-        double h = size * 0.75;
+    private static void drawBreaker(GraphicsContext g, double size, String poles, boolean rcbo) {
+        double w = size * 0.50;
+        double h = size * 0.72;
         g.fillRect(-w / 2, -h / 2, w, h);
         g.strokeRect(-w / 2, -h / 2, w, h);
-        g.strokeLine(0, -h / 2, 0, h / 2);
-        label(g, tag, 0, h / 2 + 10, size);
+        // DIN-style toggle
+        g.strokeLine(0, -h * 0.35, 0, h * 0.15);
+        g.fillRect(-w * 0.18, -h * 0.42, w * 0.36, h * 0.14);
+        if (rcbo) {
+            g.strokeOval(-w * 0.28, h * 0.18, w * 0.56, h * 0.22);
+        }
+        label(g, poles, 0, h / 2 + size * 0.26, size);
+    }
+
+    private static void drawRcd(GraphicsContext g, double size, String rating) {
+        double w = size * 0.62;
+        double h = size * 0.55;
+        g.fillRoundRect(-w / 2, -h / 2, w, h, 3, 3);
+        g.strokeRoundRect(-w / 2, -h / 2, w, h, 3, 3);
+        g.strokeOval(-w * 0.22, -h * 0.22, w * 0.44, h * 0.44);
+        g.strokeLine(-w * 0.35, 0, w * 0.35, 0);
+        label(g, "RCD", 0, h / 2 + size * 0.22, size);
+        label(g, rating, 0, h / 2 + size * 0.42, size * 0.85);
     }
 
     private static void drawDb(GraphicsContext g, double size) {
-        double w = size * 0.9;
-        double h = size * 0.7;
+        double w = size * 0.95;
+        double h = size * 0.72;
         g.fillRect(-w / 2, -h / 2, w, h);
         g.strokeRect(-w / 2, -h / 2, w, h);
-        for (int i = 0; i < 4; i++) {
-            double x = -w / 2 + 4 + i * (w - 8) / 3.5;
-            g.strokeLine(x, -h / 2 + 4, x, h / 2 - 4);
+        // ways
+        int ways = 6;
+        double inset = w * 0.08;
+        double usable = w - 2 * inset;
+        for (int i = 0; i < ways; i++) {
+            double x = -w / 2 + inset + (i + 0.5) * usable / ways;
+            g.strokeLine(x, -h / 2 + h * 0.18, x, h / 2 - h * 0.18);
+            g.strokeRect(x - usable / ways * 0.28, -h * 0.12, usable / ways * 0.56, h * 0.22);
         }
-        label(g, "DB", 0, h / 2 + 10, size);
+        // door hinge mark
+        g.strokeLine(-w / 2, -h / 2, -w / 2 - size * 0.08, 0);
+        g.strokeLine(-w / 2, h / 2, -w / 2 - size * 0.08, 0);
+        label(g, "DB", 0, h / 2 + size * 0.28, size);
     }
 
     private static void drawCable(GraphicsContext g, double size) {
-        double len = size * 0.7;
-        g.strokeLine(-len, 0, len, 0);
-        g.strokeLine(-len, -3, len, -3);
-        g.fillOval(-len - 3, -4, 6, 8);
-        g.fillOval(len - 3, -4, 6, 8);
-        label(g, "Cu", 0, 12, size);
+        double len = size * 0.72;
+        g.setLineWidth(Math.max(1.5, size * 0.08));
+        g.strokeLine(-len, -size * 0.06, len, -size * 0.06);
+        g.strokeLine(-len, size * 0.06, len, size * 0.06);
+        // ends
+        g.strokeOval(-len - size * 0.08, -size * 0.12, size * 0.16, size * 0.24);
+        g.strokeOval(len - size * 0.08, -size * 0.12, size * 0.16, size * 0.24);
+        label(g, "Cu", 0, size * 0.38, size);
     }
 
-    private static void drawEarth(GraphicsContext g, double size) {
-        double s = size * 0.35;
-        g.strokeLine(0, -s, 0, s * 0.2);
-        g.strokeLine(-s, s * 0.2, s, s * 0.2);
-        g.strokeLine(-s * 0.65, s * 0.45, s * 0.65, s * 0.45);
-        g.strokeLine(-s * 0.35, s * 0.7, s * 0.35, s * 0.7);
-        label(g, "E", 0, s + 12, size);
+    private static void drawEarth(GraphicsContext g, double size, boolean rod, boolean bar) {
+        double s = size * 0.42;
+        g.setLineWidth(Math.max(1.6, size * 0.07));
+        // IEC earth symbol: vertical + three decreasing horizontals
+        g.strokeLine(0, -s, 0, s * 0.15);
+        g.strokeLine(-s, s * 0.15, s, s * 0.15);
+        g.strokeLine(-s * 0.68, s * 0.42, s * 0.68, s * 0.42);
+        g.strokeLine(-s * 0.36, s * 0.68, s * 0.36, s * 0.68);
+        if (rod) {
+            g.strokeLine(0, s * 0.15, 0, s * 1.05);
+        }
+        if (bar) {
+            g.strokeRect(-s * 0.9, -s * 0.35, s * 1.8, s * 0.35);
+        }
+        label(g, rod ? "ROD" : (bar ? "BAR" : "E"), 0, s + size * 0.32, size);
     }
 
-    private static void drawConduit(GraphicsContext g, double size) {
-        double w = size * 0.85;
-        double h = size * 0.35;
-        g.strokeRoundRect(-w / 2, -h / 2, w, h, 6, 6);
-        label(g, "∅", 0, h / 2 + 10, size);
+    private static void drawConduit(GraphicsContext g, double size, boolean metal) {
+        double w = size * 0.9;
+        double h = size * 0.32;
+        g.strokeRoundRect(-w / 2, -h / 2, w, h, h, h);
+        if (metal) {
+            // hatch
+            for (double x = -w / 2 + 4; x < w / 2; x += 6) {
+                g.strokeLine(x, -h / 2 + 2, x + 4, h / 2 - 2);
+            }
+        }
+        label(g, metal ? "GI" : "PVC", 0, h / 2 + size * 0.28, size);
     }
 
     private static void drawJunction(GraphicsContext g, double size) {
-        double s = size * 0.35;
+        double s = size * 0.36;
+        g.fillRect(-s, -s, s * 2, s * 2);
         g.strokeRect(-s, -s, s * 2, s * 2);
         g.strokeLine(-s, 0, s, 0);
         g.strokeLine(0, -s, 0, s);
-        label(g, "JB", 0, s + 10, size);
+        // terminal dots
+        double d = s * 0.18;
+        g.setFill(g.getStroke());
+        g.fillOval(-d, -d, d * 2, d * 2);
+        label(g, "JB", 0, s + size * 0.28, size);
     }
 
     private static void drawIsolator(GraphicsContext g, double size, boolean changeover) {
-        double s = size * 0.4;
+        double s = size * 0.40;
+        g.fillRect(-s, -s, s * 2, s * 2);
         g.strokeRect(-s, -s, s * 2, s * 2);
-        g.strokeLine(-s * 0.5, s * 0.3, s * 0.5, -s * 0.3);
+        // disconnector symbol
+        g.strokeLine(-s * 0.55, s * 0.4, s * 0.15, -s * 0.45);
+        g.fillOval(s * 0.1, -s * 0.55, s * 0.2, s * 0.2);
+        g.strokeLine(-s * 0.55, s * 0.4, -s * 0.55, s * 0.55);
         if (changeover) {
-            g.strokeLine(-s * 0.5, -s * 0.3, s * 0.5, s * 0.3);
+            g.strokeLine(-s * 0.55, -s * 0.4, s * 0.15, s * 0.45);
         }
-        label(g, changeover ? "COS" : "ISO", 0, s + 10, size);
+        label(g, changeover ? "COS" : "ISO", 0, s + size * 0.28, size);
     }
 
     private static void drawMeter(GraphicsContext g, double size) {
-        double r = size * 0.4;
+        double r = size * 0.42;
+        g.fillOval(-r, -r, r * 2, r * 2);
         g.strokeOval(-r, -r, r * 2, r * 2);
-        g.strokeRect(-r * 0.5, -r * 0.25, r, r * 0.5);
-        label(g, "kWh", 0, r + 10, size);
+        g.strokeRect(-r * 0.55, -r * 0.28, r * 1.1, r * 0.56);
+        // Wh mark
+        g.setLineWidth(Math.max(1.0, size * 0.04));
+        g.strokeLine(-r * 0.25, 0, r * 0.25, 0);
+        label(g, "kWh", 0, r + size * 0.28, size);
     }
 
     private static void drawSpd(GraphicsContext g, double size) {
-        double s = size * 0.4;
+        double s = size * 0.42;
+        // diamond / arrow surge symbol
         g.strokePolygon(
+                new double[]{0, s, 0, -s},
                 new double[]{-s, 0, s, 0},
-                new double[]{0, -s, 0, s},
                 4
         );
-        label(g, "SPD", 0, s + 10, size);
+        g.strokeLine(0, -s * 0.45, 0, s * 0.45);
+        label(g, "SPD", 0, s + size * 0.28, size);
     }
 
     private static void drawGeneric(GraphicsContext g, double size, String text) {
-        double s = size * 0.4;
+        double s = size * 0.40;
         g.fillOval(-s, -s, s * 2, s * 2);
         g.strokeOval(-s, -s, s * 2, s * 2);
-        label(g, text, 0, s + 10, size);
+        label(g, text, 0, s + size * 0.28, size);
     }
 
     private static void label(GraphicsContext g, String text, double x, double y, double size) {
-        g.setFill(Color.web("#9aa6b8"));
-        g.setFont(Font.font("Segoe UI", FontWeight.NORMAL, Math.max(9, size * 0.28)));
+        // Skip annotation text on compact library / thumbnail icons
+        if (size < 30) {
+            return;
+        }
+        g.setFill(LABEL);
+        g.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, Math.max(8.5, size * 0.26)));
         g.setTextAlign(TextAlignment.CENTER);
         g.fillText(text, x, y);
     }
@@ -220,11 +341,16 @@ public final class SymbolRenderer {
 
     /** Suggested hit radius in plan millimetres. */
     public static double hitRadiusMm() {
-        return 350;
+        return 400;
     }
 
-    /** Suggested on-screen size in pixels (clamped). */
+    /**
+     * On-screen symbol size: scales mildly with zoom so icons stay CAD-readable
+     * when zoomed out, without becoming huge when zoomed in.
+     */
     public static double screenSize(double scale) {
-        return Math.clamp(28 + scale * 400, 22, 48);
+        // scale is px/mm; at 0.04 ≈ default, want ~34px
+        double px = 22 + Math.log10(Math.max(scale, 0.008) * 1000) * 18;
+        return Math.clamp(px, 20, 56);
     }
 }

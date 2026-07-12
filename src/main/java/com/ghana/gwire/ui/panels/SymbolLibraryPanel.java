@@ -5,10 +5,14 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.components.ComponentCategory;
 import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.ui.symbols.ComponentDragFormats;
+import com.ghana.gwire.ui.symbols.SymbolRenderer;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -17,8 +21,12 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 
 import java.util.function.Consumer;
 
@@ -62,8 +70,21 @@ public class SymbolLibraryPanel {
         searchField.textProperty().addListener((o, a, b) -> applyFilter());
 
         listView = new ListView<>(filtered);
+        listView.setFixedCellSize(52);
         listView.setCellFactory(lv -> new ListCell<>() {
+            private final Canvas iconCanvas = new Canvas(40, 40);
+            private final Label nameLabel = new Label();
+            private final Label metaLabel = new Label();
+            private final VBox textBox = new VBox(2, nameLabel, metaLabel);
+            private final HBox row = new HBox(10, iconCanvas, textBox);
+
             {
+                row.setAlignment(Pos.CENTER_LEFT);
+                nameLabel.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 12));
+                nameLabel.setStyle("-fx-text-fill: #e5e9f0;");
+                metaLabel.setFont(Font.font("Segoe UI", 10));
+                metaLabel.setStyle("-fx-text-fill: #8f9bb0;");
+                HBox.setHgrow(textBox, Priority.ALWAYS);
                 setOnDragDetected(e -> {
                     ElectricalComponent item = getItem();
                     if (item == null || isEmpty()) {
@@ -91,8 +112,12 @@ public class SymbolLibraryPanel {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    setText(item.name() + "  ·  " + item.standardSize()
+                    setText(null);
+                    paintLibraryIcon(iconCanvas, item.symbolKey());
+                    nameLabel.setText(item.name());
+                    metaLabel.setText(nullToDash(item.standardSize())
                             + "  ·  GHS " + String.format("%.2f", item.unitCostGhs()));
+                    setGraphic(row);
                 }
             }
         });
@@ -209,5 +234,19 @@ public class SymbolLibraryPanel {
                 return null;
             }
         }
+    }
+
+    /** Paint a CAD-quality symbol preview for the library list. */
+    private static void paintLibraryIcon(Canvas canvas, String symbolKey) {
+        GraphicsContext g = canvas.getGraphicsContext2D();
+        double w = canvas.getWidth();
+        double h = canvas.getHeight();
+        g.setImageSmoothing(true);
+        g.setFill(Color.web("#0b0f14"));
+        g.fillRoundRect(0, 0, w, h, 6, 6);
+        g.setStroke(Color.web("#3b4252"));
+        g.setLineWidth(1);
+        g.strokeRoundRect(0.5, 0.5, w - 1, h - 1, 6, 6);
+        SymbolRenderer.draw(g, symbolKey, w / 2, h / 2 - 1, 28, 0, false);
     }
 }

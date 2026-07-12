@@ -31,8 +31,9 @@ import javafx.scene.input.TransferMode;
 import javafx.scene.input.ZoomEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.shape.ArcType;
+import javafx.scene.shape.StrokeLineCap;
+import javafx.scene.text.TextAlignment;
 
 import java.util.HashMap;
 import java.util.List;
@@ -334,7 +335,8 @@ public class FloorPlanCanvas {
         GraphicsContext g = canvas.getGraphicsContext2D();
         double w = canvas.getWidth();
         double h = canvas.getHeight();
-        g.setFill(Color.web("#0e1219"));
+        g.setImageSmoothing(true);
+        g.setFill(CadStyle.PAPER);
         g.fillRect(0, 0, w, h);
 
         drawGrid(g, w, h);
@@ -346,12 +348,12 @@ public class FloorPlanCanvas {
         drawDevices(g);
         drawPreview(g);
         if (dropHighlight) {
-            g.setStroke(Color.web("#2f9e6a"));
-            g.setLineWidth(3);
-            g.setLineDashes(8, 6);
-            g.strokeRect(4, 4, w - 8, h - 8);
+            CadStyle.applyCadStroke(g, 2.5);
+            g.setStroke(CadStyle.ACCENT);
+            g.setLineDashes(10, 6);
+            g.strokeRect(5, 5, w - 10, h - 10);
             g.setLineDashes(null);
-            g.setFill(Color.web("#2f9e6a", 0.08));
+            g.setFill(Color.web("#88c0d0", 0.07));
             g.fillRect(0, 0, w, h);
         }
         drawHud(g, w, h);
@@ -831,35 +833,42 @@ public class FloorPlanCanvas {
         selectionListener.run();
     }
 
-    // --- drawing ---
+    // --- CAD drawing ---
 
     private void drawGrid(GraphicsContext g, double w, double h) {
         double grid = floorPlan.gridMm();
-        double major = grid * 2;
+        double major = grid * 5; // every 5th minor = major (architectural feel)
         Vec2 topLeft = screenToWorld(0, 0);
         Vec2 bottomRight = screenToWorld(w, h);
         double x0 = Math.floor(topLeft.x() / grid) * grid;
         double y0 = Math.floor(topLeft.y() / grid) * grid;
 
-        g.setLineWidth(1);
-        for (double x = x0; x <= bottomRight.x(); x += grid) {
-            boolean isMajor = Math.abs(x % major) < 1e-6 || Math.abs(x % major - major) < 1e-6;
-            g.setStroke(isMajor ? Color.web("#2a3344") : Color.web("#1a2030"));
+        CadStyle.applySharpStroke(g, 1.0);
+        for (double x = x0; x <= bottomRight.x() + grid * 0.5; x += grid) {
+            boolean isMajor = Math.abs(Math.IEEEremainder(x, major)) < 1e-3;
+            g.setStroke(isMajor ? CadStyle.GRID_MAJOR : CadStyle.GRID_MINOR);
+            g.setLineWidth(isMajor ? 1.15 : 0.7);
             double sx = worldToScreenX(x);
             g.strokeLine(sx, 0, sx, h);
         }
-        for (double y = y0; y <= bottomRight.y(); y += grid) {
-            boolean isMajor = Math.abs(y % major) < 1e-6 || Math.abs(y % major - major) < 1e-6;
-            g.setStroke(isMajor ? Color.web("#2a3344") : Color.web("#1a2030"));
+        for (double y = y0; y <= bottomRight.y() + grid * 0.5; y += grid) {
+            boolean isMajor = Math.abs(Math.IEEEremainder(y, major)) < 1e-3;
+            g.setStroke(isMajor ? CadStyle.GRID_MAJOR : CadStyle.GRID_MINOR);
+            g.setLineWidth(isMajor ? 1.15 : 0.7);
             double sy = worldToScreenY(y);
             g.strokeLine(0, sy, w, sy);
         }
 
-        // Axes origin
-        g.setStroke(Color.web("#2f9e6a", 0.5));
-        g.setLineWidth(1.5);
+        // Origin axes (plan 0,0)
+        CadStyle.applySharpStroke(g, 1.4);
+        g.setStroke(CadStyle.GRID_ORIGIN);
         g.strokeLine(worldToScreenX(0), 0, worldToScreenX(0), h);
         g.strokeLine(0, worldToScreenY(0), w, worldToScreenY(0));
+        // origin mark
+        double ox = worldToScreenX(0);
+        double oy = worldToScreenY(0);
+        g.setFill(CadStyle.GRID_ORIGIN);
+        g.fillOval(ox - 3.5, oy - 3.5, 7, 7);
     }
 
     private void drawBackground(GraphicsContext g) {
@@ -874,6 +883,7 @@ public class FloorPlanCanvas {
         double wMm = img.getWidth() * bg.mmPerPixel();
         double hMm = img.getHeight() * bg.mmPerPixel();
         g.setGlobalAlpha(bg.opacity());
+        g.setImageSmoothing(true);
         g.drawImage(img,
                 worldToScreenX(bg.originXMm()),
                 worldToScreenY(bg.originYMm()),
@@ -891,14 +901,41 @@ public class FloorPlanCanvas {
             double y = worldToScreenY(r.y());
             double w = r.widthMm() * scale;
             double h = r.heightMm() * scale;
-            g.setFill(selected ? Color.web("#2f9e6a", 0.22) : Color.web("#3d7ea6", 0.15));
+
+            // Soft hatch-like fill
+            g.setFill(selected ? CadStyle.ROOM_FILL_SEL : CadStyle.ROOM_FILL);
             g.fillRect(x, y, w, h);
-            g.setStroke(selected ? Color.web("#3ecf8e") : Color.web("#5b9fd4"));
-            g.setLineWidth(selected ? 2.5 : 1.5);
-            g.strokeRect(x, y, w, h);
-            g.setFill(Color.web("#e8edf5"));
-            g.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 12));
-            g.fillText(r.name() + String.format(" (%.1f m²)", r.areaM2()), x + 6, y + 16);
+
+            CadStyle.applySharpStroke(g, selected ? 2.0 : 1.25);
+            g.setStroke(selected ? CadStyle.ROOM_SEL : CadStyle.ROOM_EDGE);
+            g.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+
+            // Corner ticks (CAD room annotation)
+            double tick = Math.min(10, Math.min(w, h) * 0.08);
+            g.setStroke(selected ? CadStyle.ROOM_SEL : CadStyle.DIM);
+            CadStyle.applySharpStroke(g, 1.0);
+            g.strokeLine(x, y, x + tick, y);
+            g.strokeLine(x, y, x, y + tick);
+            g.strokeLine(x + w, y, x + w - tick, y);
+            g.strokeLine(x + w, y, x + w, y + tick);
+            g.strokeLine(x, y + h, x + tick, y + h);
+            g.strokeLine(x, y + h, x, y + h - tick);
+            g.strokeLine(x + w, y + h, x + w - tick, y + h);
+            g.strokeLine(x + w, y + h, x + w, y + h - tick);
+
+            // Label block
+            String title = r.name();
+            String area = String.format("%.1f m²", r.areaM2());
+            String dims = String.format("%.2f × %.2f m", r.widthMm() / 1000.0, r.heightMm() / 1000.0);
+            g.setFont(CadStyle.labelFont(12));
+            g.setTextAlign(TextAlignment.LEFT);
+            g.setFill(CadStyle.ROOM_TEXT);
+            double lx = x + 8;
+            double ly = y + 16;
+            g.fillText(title, lx, ly);
+            g.setFont(CadStyle.smallFont(10));
+            g.setFill(CadStyle.ROOM_DIM);
+            g.fillText(area + "  ·  " + dims, lx, ly + 14);
         }
     }
 
@@ -907,18 +944,62 @@ public class FloorPlanCanvas {
             boolean selected = selection.kind() == SelectionModel.Kind.WALL
                     && selection.wall() != null
                     && selection.wall().id().equals(wall.id());
-            g.setStroke(selected ? Color.web("#f0b429") : Color.web("#e8edf5"));
-            g.setLineWidth(selected ? 4 : 3);
-            g.strokeLine(
-                    worldToScreenX(wall.start().x()), worldToScreenY(wall.start().y()),
-                    worldToScreenX(wall.end().x()), worldToScreenY(wall.end().y())
-            );
-            // End caps
-            g.setFill(selected ? Color.web("#f0b429") : Color.web("#9aa6b8"));
-            double r = selected ? 5 : 3.5;
-            g.fillOval(worldToScreenX(wall.start().x()) - r, worldToScreenY(wall.start().y()) - r, r * 2, r * 2);
-            g.fillOval(worldToScreenX(wall.end().x()) - r, worldToScreenY(wall.end().y()) - r, r * 2, r * 2);
+            drawDoubleLineWall(g, wall, selected);
         }
+    }
+
+    /** Architectural double-line wall with filled core and crisp outlines. */
+    private void drawDoubleLineWall(GraphicsContext g, Wall wall, boolean selected) {
+        Vec2 a = wall.start();
+        Vec2 b = wall.end();
+        Vec2 dir = b.subtract(a);
+        double len = dir.length();
+        if (len < 1e-6) {
+            return;
+        }
+        Vec2 n = dir.perpendicular(); // unit normal
+        double halfT = Math.max(wall.thicknessMm(), 80) / 2.0;
+
+        Vec2 a1 = a.add(n.scale(halfT));
+        Vec2 a2 = a.add(n.scale(-halfT));
+        Vec2 b1 = b.add(n.scale(halfT));
+        Vec2 b2 = b.add(n.scale(-halfT));
+
+        double[] xs = {
+                worldToScreenX(a1.x()), worldToScreenX(b1.x()),
+                worldToScreenX(b2.x()), worldToScreenX(a2.x())
+        };
+        double[] ys = {
+                worldToScreenY(a1.y()), worldToScreenY(b1.y()),
+                worldToScreenY(b2.y()), worldToScreenY(a2.y())
+        };
+
+        g.setFill(selected ? CadStyle.WALL_SEL_FILL : CadStyle.WALL_FILL);
+        g.fillPolygon(xs, ys, 4);
+
+        CadStyle.applySharpStroke(g, selected ? 1.8 : 1.15);
+        g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.WALL_OUTLINE);
+        g.strokePolygon(xs, ys, 4);
+
+        // Centerline (construction reference) — dashed, subtle
+        CadStyle.applySharpStroke(g, 0.8);
+        g.setStroke(selected ? CadStyle.WALL_SEL.deriveColor(0, 1, 1, 0.55) : CadStyle.DIM);
+        g.setLineDashes(4, 4);
+        g.strokeLine(
+                worldToScreenX(a.x()), worldToScreenY(a.y()),
+                worldToScreenX(b.x()), worldToScreenY(b.y())
+        );
+        g.setLineDashes(null);
+
+        // End nodes
+        double r = selected ? 4.5 : 3.0;
+        g.setFill(selected ? CadStyle.WALL_SEL : CadStyle.WALL);
+        g.fillOval(worldToScreenX(a.x()) - r, worldToScreenY(a.y()) - r, r * 2, r * 2);
+        g.fillOval(worldToScreenX(b.x()) - r, worldToScreenY(b.y()) - r, r * 2, r * 2);
+        CadStyle.applySharpStroke(g, 1.0);
+        g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.WALL_OUTLINE);
+        g.strokeOval(worldToScreenX(a.x()) - r, worldToScreenY(a.y()) - r, r * 2, r * 2);
+        g.strokeOval(worldToScreenX(b.x()) - r, worldToScreenY(b.y()) - r, r * 2, r * 2);
     }
 
     private void drawOpenings(GraphicsContext g) {
@@ -930,58 +1011,222 @@ public class FloorPlanCanvas {
             Wall wall = wallOpt.get();
             Vec2 center = wall.start().lerp(wall.end(), o.t());
             Vec2 dir = wall.end().subtract(wall.start()).normalize();
+            if (dir.length() < 1e-9) {
+                continue;
+            }
             Vec2 perp = dir.perpendicular();
             double half = o.widthMm() / 2.0;
             Vec2 a = center.add(dir.scale(-half));
             Vec2 b = center.add(dir.scale(half));
+            double wallHalfT = Math.max(wall.thicknessMm(), 80) / 2.0;
 
             boolean selected = selection.kind() == SelectionModel.Kind.OPENING
                     && selection.opening() != null
                     && selection.opening().id().equals(o.id());
             boolean door = o.type() == OpeningType.DOOR;
-            g.setStroke(selected ? Color.web("#f0b429") : (door ? Color.web("#e07050") : Color.web("#50b0e0")));
-            g.setLineWidth(selected ? 3 : 2);
-            // Gap in wall shown as thick opening mark + tick
-            g.strokeLine(worldToScreenX(a.x()), worldToScreenY(a.y()),
-                    worldToScreenX(b.x()), worldToScreenY(b.y()));
-            Vec2 tick = perp.scale(door ? 400 : 200);
-            g.strokeLine(
-                    worldToScreenX(center.x()), worldToScreenY(center.y()),
-                    worldToScreenX(center.x() + tick.x()), worldToScreenY(center.y() + tick.y())
-            );
-            g.setFill(g.getStroke());
-            g.setFont(Font.font(10));
-            g.fillText(door ? "D" : "W",
-                    worldToScreenX(center.x()) + 4,
-                    worldToScreenY(center.y()) - 4);
+
+            if (door) {
+                drawDoorCad(g, a, b, dir, perp, wallHalfT, o.widthMm(), selected);
+            } else {
+                drawWindowCad(g, a, b, dir, perp, wallHalfT, selected);
+            }
         }
     }
 
+    /** Plan door: clear opening + leaf + 90° swing arc (hinge at start). */
+    private void drawDoorCad(
+            GraphicsContext g, Vec2 a, Vec2 b, Vec2 dir, Vec2 perp,
+            double wallHalfT, double widthMm, boolean selected
+    ) {
+        Color stroke = selected ? CadStyle.WALL_SEL : CadStyle.DOOR;
+        Color swing = selected ? CadStyle.WALL_SEL.deriveColor(0, 1, 1, 0.45) : CadStyle.DOOR_SWING;
+
+        // Clear wall section (paper fill over wall core)
+        Vec2 a1 = a.add(perp.scale(wallHalfT + 4));
+        Vec2 a2 = a.add(perp.scale(-(wallHalfT + 4)));
+        Vec2 b1 = b.add(perp.scale(wallHalfT + 4));
+        Vec2 b2 = b.add(perp.scale(-(wallHalfT + 4)));
+        g.setFill(CadStyle.PAPER);
+        g.fillPolygon(
+                new double[]{worldToScreenX(a1.x()), worldToScreenX(b1.x()),
+                        worldToScreenX(b2.x()), worldToScreenX(a2.x())},
+                new double[]{worldToScreenY(a1.y()), worldToScreenY(b1.y()),
+                        worldToScreenY(b2.y()), worldToScreenY(a2.y())},
+                4
+        );
+
+        // Jambs
+        CadStyle.applySharpStroke(g, selected ? 2.2 : 1.6);
+        g.setStroke(stroke);
+        g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
+                worldToScreenX(a2.x()), worldToScreenY(a2.y()));
+        g.strokeLine(worldToScreenX(b1.x()), worldToScreenY(b1.y()),
+                worldToScreenX(b2.x()), worldToScreenY(b2.y()));
+
+        // Door leaf (closed, along wall) + swing arc
+        double leafLen = widthMm;
+        double rPx = leafLen * scale;
+        double ax = worldToScreenX(a.x());
+        double ay = worldToScreenY(a.y());
+        // Leaf closed along wall toward b
+        CadStyle.applyCadStroke(g, selected ? 2.4 : 1.8);
+        g.setStroke(stroke);
+        g.setLineCap(StrokeLineCap.BUTT);
+        g.strokeLine(ax, ay, worldToScreenX(b.x()), worldToScreenY(b.y()));
+
+        // Open leaf at 90° along perp
+        Vec2 openEnd = a.add(perp.scale(leafLen));
+        g.strokeLine(ax, ay, worldToScreenX(openEnd.x()), worldToScreenY(openEnd.y()));
+
+        // Swing arc (JavaFX angles: 0 = east, CCW; screen Y grows down)
+        g.setStroke(swing);
+        CadStyle.applyCadStroke(g, 1.2);
+        double dirScreen = Math.toDegrees(Math.atan2(
+                worldToScreenY(a.y() + dir.y()) - ay,
+                worldToScreenX(a.x() + dir.x()) - ax
+        ));
+        double perpScreen = Math.toDegrees(Math.atan2(
+                worldToScreenY(a.y() + perp.y()) - ay,
+                worldToScreenX(a.x() + perp.x()) - ax
+        ));
+        double start = -dirScreen;
+        double extent = -(perpScreen - dirScreen);
+        while (extent > 180) {
+            extent -= 360;
+        }
+        while (extent < -180) {
+            extent += 360;
+        }
+        if (Math.abs(extent) < 1) {
+            extent = -90;
+        }
+        g.strokeArc(ax - rPx, ay - rPx, rPx * 2, rPx * 2, start, extent, ArcType.OPEN);
+
+        // Hinge node
+        g.setFill(stroke);
+        g.fillOval(ax - 2.5, ay - 2.5, 5, 5);
+
+        g.setFont(CadStyle.smallFont(9));
+        g.setFill(stroke);
+        g.setTextAlign(TextAlignment.CENTER);
+        Vec2 labelAt = a.add(b).scale(0.5).add(perp.scale(wallHalfT + 280));
+        g.fillText("D", worldToScreenX(labelAt.x()), worldToScreenY(labelAt.y()));
+    }
+
+    /** Plan window: sill + double glazing lines across wall thickness. */
+    private void drawWindowCad(
+            GraphicsContext g, Vec2 a, Vec2 b, Vec2 dir, Vec2 perp,
+            double wallHalfT, boolean selected
+    ) {
+        Color stroke = selected ? CadStyle.WALL_SEL : CadStyle.WINDOW;
+
+        // Clear opening through wall
+        Vec2 a1 = a.add(perp.scale(wallHalfT + 2));
+        Vec2 a2 = a.add(perp.scale(-(wallHalfT + 2)));
+        Vec2 b1 = b.add(perp.scale(wallHalfT + 2));
+        Vec2 b2 = b.add(perp.scale(-(wallHalfT + 2)));
+        g.setFill(CadStyle.PAPER);
+        g.fillPolygon(
+                new double[]{worldToScreenX(a1.x()), worldToScreenX(b1.x()),
+                        worldToScreenX(b2.x()), worldToScreenX(a2.x())},
+                new double[]{worldToScreenY(a1.y()), worldToScreenY(b1.y()),
+                        worldToScreenY(b2.y()), worldToScreenY(a2.y())},
+                4
+        );
+
+        // Outer frame
+        CadStyle.applySharpStroke(g, selected ? 2.0 : 1.4);
+        g.setStroke(stroke);
+        g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
+                worldToScreenX(b1.x()), worldToScreenY(b1.y()));
+        g.strokeLine(worldToScreenX(a2.x()), worldToScreenY(a2.y()),
+                worldToScreenX(b2.x()), worldToScreenY(b2.y()));
+        // Jambs
+        g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
+                worldToScreenX(a2.x()), worldToScreenY(a2.y()));
+        g.strokeLine(worldToScreenX(b1.x()), worldToScreenY(b1.y()),
+                worldToScreenX(b2.x()), worldToScreenY(b2.y()));
+
+        // Double glazing lines (parallel to wall, inset from outer faces)
+        double inset = wallHalfT * 0.35;
+        Vec2 g1a = a.add(perp.scale(inset));
+        Vec2 g1b = b.add(perp.scale(inset));
+        Vec2 g2a = a.add(perp.scale(-inset));
+        Vec2 g2b = b.add(perp.scale(-inset));
+        g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.ACCENT);
+        CadStyle.applySharpStroke(g, 1.1);
+        g.strokeLine(worldToScreenX(g1a.x()), worldToScreenY(g1a.y()),
+                worldToScreenX(g1b.x()), worldToScreenY(g1b.y()));
+        g.strokeLine(worldToScreenX(g2a.x()), worldToScreenY(g2a.y()),
+                worldToScreenX(g2b.x()), worldToScreenY(g2b.y()));
+
+        // Glass fill between glazing lines
+        g.setFill(CadStyle.WINDOW_GLASS);
+        g.fillPolygon(
+                new double[]{worldToScreenX(g1a.x()), worldToScreenX(g1b.x()),
+                        worldToScreenX(g2b.x()), worldToScreenX(g2a.x())},
+                new double[]{worldToScreenY(g1a.y()), worldToScreenY(g1b.y()),
+                        worldToScreenY(g2b.y()), worldToScreenY(g2a.y())},
+                4
+        );
+
+        g.setFont(CadStyle.smallFont(9));
+        g.setFill(stroke);
+        g.setTextAlign(TextAlignment.CENTER);
+        Vec2 mid = a.add(b).scale(0.5).add(perp.scale(wallHalfT + 220));
+        g.fillText("W", worldToScreenX(mid.x()), worldToScreenY(mid.y()));
+    }
+
     private void drawPreview(GraphicsContext g) {
-        g.setLineDashes(6, 4);
-        g.setStroke(Color.web("#2f9e6a"));
-        g.setLineWidth(2);
+        CadStyle.applyCadStroke(g, 1.8);
+        g.setLineDashes(7, 5);
+        g.setStroke(CadStyle.PREVIEW);
         if (wallStart != null && previewEnd != null) {
+            // Ghost double-line wall
+            Vec2 a = wallStart;
+            Vec2 b = previewEnd;
+            Vec2 n = b.subtract(a).perpendicular();
+            if (n.length() > 0.5) {
+                double halfT = 75;
+                Vec2 a1 = a.add(n.scale(halfT));
+                Vec2 a2 = a.add(n.scale(-halfT));
+                Vec2 b1 = b.add(n.scale(halfT));
+                Vec2 b2 = b.add(n.scale(-halfT));
+                g.setFill(Color.web("#a3be8c", 0.18));
+                g.fillPolygon(
+                        new double[]{worldToScreenX(a1.x()), worldToScreenX(b1.x()),
+                                worldToScreenX(b2.x()), worldToScreenX(a2.x())},
+                        new double[]{worldToScreenY(a1.y()), worldToScreenY(b1.y()),
+                                worldToScreenY(b2.y()), worldToScreenY(a2.y())},
+                        4
+                );
+            }
             g.strokeLine(
                     worldToScreenX(wallStart.x()), worldToScreenY(wallStart.y()),
                     worldToScreenX(previewEnd.x()), worldToScreenY(previewEnd.y())
             );
             double len = wallStart.distanceTo(previewEnd);
             g.setLineDashes(null);
-            g.setFill(Color.web("#2f9e6a"));
-            g.fillText(String.format("%.0f mm", len),
-                    worldToScreenX(previewEnd.x()) + 8,
-                    worldToScreenY(previewEnd.y()) - 8);
+            g.setFill(CadStyle.PREVIEW);
+            g.setFont(CadStyle.labelFont(11));
+            g.setTextAlign(TextAlignment.LEFT);
+            g.fillText(String.format("%.0f mm  (%.2f m)", len, len / 1000.0),
+                    worldToScreenX(previewEnd.x()) + 10,
+                    worldToScreenY(previewEnd.y()) - 10);
         }
         if (roomOrigin != null && roomPreviewCorner != null) {
             double x = Math.min(roomOrigin.x(), roomPreviewCorner.x());
             double y = Math.min(roomOrigin.y(), roomPreviewCorner.y());
             double w = Math.abs(roomOrigin.x() - roomPreviewCorner.x());
             double h = Math.abs(roomOrigin.y() - roomPreviewCorner.y());
+            g.setFill(Color.web("#a3be8c", 0.12));
+            g.fillRect(worldToScreenX(x), worldToScreenY(y), w * scale, h * scale);
             g.strokeRect(worldToScreenX(x), worldToScreenY(y), w * scale, h * scale);
             g.setLineDashes(null);
-            g.setFill(Color.web("#2f9e6a"));
-            g.fillText(String.format("%.0f × %.0f mm", w, h),
+            g.setFill(CadStyle.PREVIEW);
+            g.setFont(CadStyle.labelFont(11));
+            g.setTextAlign(TextAlignment.LEFT);
+            g.fillText(String.format("%.0f × %.0f mm  (%.1f m²)", w, h, (w * h) / 1_000_000.0),
                     worldToScreenX(x) + 8, worldToScreenY(y) + 16);
         }
         g.setLineDashes(null);
@@ -991,26 +1236,43 @@ public class FloorPlanCanvas {
         if (!floorPlan.isShowWiringRoutes() || floorPlan.wiringRoutes().isEmpty()) {
             return;
         }
-        g.setLineWidth(Math.max(1.2, 1.8 * scale * 20));
         int i = 0;
         for (WiringRoute route : floorPlan.wiringRoutes()) {
             List<Vec2> pts = route.points();
             if (pts.size() < 2) {
                 continue;
             }
-            // Cycle soft colours per route
             double hue = (i * 47) % 360;
-            g.setStroke(Color.hsb(hue, 0.55, 0.85, 0.75));
-            g.setLineDashes(6, 4);
-            g.beginPath();
-            g.moveTo(worldToScreenX(pts.get(0).x()), worldToScreenY(pts.get(0).y()));
-            for (int p = 1; p < pts.size(); p++) {
-                g.lineTo(worldToScreenX(pts.get(p).x()), worldToScreenY(pts.get(p).y()));
-            }
-            g.stroke();
+            Color routeColor = Color.hsb(hue, 0.50, 0.88, 0.88);
+            // Soft outer stroke
+            CadStyle.applyCadStroke(g, Math.max(2.5, 3.2));
+            g.setStroke(routeColor.deriveColor(0, 1, 1, 0.25));
             g.setLineDashes(null);
+            strokePolyline(g, pts);
+            // Primary dashed conductor
+            CadStyle.applyCadStroke(g, Math.max(1.3, 1.6));
+            g.setStroke(routeColor);
+            g.setLineDashes(8, 5);
+            strokePolyline(g, pts);
+            g.setLineDashes(null);
+            // Nodes at vertices
+            g.setFill(routeColor);
+            for (Vec2 p : pts) {
+                double sx = worldToScreenX(p.x());
+                double sy = worldToScreenY(p.y());
+                g.fillOval(sx - 2.2, sy - 2.2, 4.4, 4.4);
+            }
             i++;
         }
+    }
+
+    private void strokePolyline(GraphicsContext g, List<Vec2> pts) {
+        g.beginPath();
+        g.moveTo(worldToScreenX(pts.get(0).x()), worldToScreenY(pts.get(0).y()));
+        for (int p = 1; p < pts.size(); p++) {
+            g.lineTo(worldToScreenX(pts.get(p).x()), worldToScreenY(pts.get(p).y()));
+        }
+        g.stroke();
     }
 
     private void drawDevices(GraphicsContext g) {
@@ -1032,19 +1294,74 @@ public class FloorPlanCanvas {
     }
 
     private void drawHud(GraphicsContext g, double w, double h) {
-        g.setFill(Color.web("#12161e", 0.75));
-        g.fillRoundRect(10, h - 34, 360, 24, 6, 6);
-        g.setFill(Color.web("#9aa6b8"));
-        g.setFont(Font.font(11));
+        // Status chip
         String place = movingDevice != null
                 ? " · dragging " + movingDevice.displayName()
                 : (dropHighlight ? " · drop to place" : "");
-        g.fillText("Grid %.0f mm · snap %s · %.3f px/mm · %d devices%s".formatted(
-                        floorPlan.gridMm(),
-                        floorPlan.isSnapToGrid() ? "on" : "off",
-                        scale,
-                        floorPlan.devices().size(),
-                        place),
-                18, h - 17);
+        String status = "Grid %.0f mm · snap %s · %.3f px/mm · %d devices%s".formatted(
+                floorPlan.gridMm(),
+                floorPlan.isSnapToGrid() ? "on" : "off",
+                scale,
+                floorPlan.devices().size(),
+                place);
+
+        g.setFont(CadStyle.smallFont(11));
+        double textW = Math.max(320, status.length() * 6.2);
+        double chipW = Math.min(w - 20, textW + 24);
+        double chipH = 26;
+        double chipX = 10;
+        double chipY = h - 38;
+        g.setFill(CadStyle.HUD_BG);
+        g.fillRoundRect(chipX, chipY, chipW, chipH, 6, 6);
+        CadStyle.applySharpStroke(g, 1.0);
+        g.setStroke(CadStyle.HUD_BORDER);
+        g.strokeRoundRect(chipX + 0.5, chipY + 0.5, chipW - 1, chipH - 1, 6, 6);
+        g.setFill(CadStyle.HUD_TEXT);
+        g.setTextAlign(TextAlignment.LEFT);
+        g.fillText(status, chipX + 12, chipY + 17);
+
+        // Scale bar (bottom-right) — CAD drawing sheet style
+        drawScaleBar(g, w, h);
+    }
+
+    private void drawScaleBar(GraphicsContext g, double w, double h) {
+        double barMm = CadStyle.niceScaleBarMm(scale);
+        double barPx = barMm * scale;
+        if (barPx < 40 || barPx > w * 0.45) {
+            return;
+        }
+        double margin = 16;
+        double x1 = w - margin - barPx;
+        double x2 = w - margin;
+        double y = h - 22;
+        double tick = 6;
+
+        g.setFill(CadStyle.HUD_BG);
+        g.fillRoundRect(x1 - 10, y - 18, barPx + 20, 28, 5, 5);
+        CadStyle.applySharpStroke(g, 1.0);
+        g.setStroke(CadStyle.HUD_BORDER);
+        g.strokeRoundRect(x1 - 9.5, y - 17.5, barPx + 19, 27, 5, 5);
+
+        // Alternating blocks (classic scale bar)
+        int segs = 4;
+        double segPx = barPx / segs;
+        for (int i = 0; i < segs; i++) {
+            g.setFill(i % 2 == 0 ? CadStyle.SCALE_TICK : CadStyle.DIM);
+            g.fillRect(x1 + i * segPx, y - 3, segPx, 6);
+        }
+        CadStyle.applySharpStroke(g, 1.2);
+        g.setStroke(CadStyle.SCALE_TICK);
+        g.strokeLine(x1, y, x2, y);
+        g.strokeLine(x1, y - tick, x1, y + 2);
+        g.strokeLine(x2, y - tick, x2, y + 2);
+
+        g.setFont(CadStyle.smallFont(10));
+        g.setFill(CadStyle.HUD_TEXT);
+        g.setTextAlign(TextAlignment.CENTER);
+        String label = barMm >= 1000
+                ? String.format("%.0f m", barMm / 1000.0)
+                : String.format("%.0f mm", barMm);
+        g.fillText(label, (x1 + x2) / 2, y - 8);
+        g.setTextAlign(TextAlignment.LEFT);
     }
 }
