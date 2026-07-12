@@ -84,12 +84,20 @@ public class FloorPlanCanvas {
     /** Catalogue component pending placement (PLACE_DEVICE tool fallback). */
     private ElectricalComponent pendingComponent;
 
-    /** Live drag-move of a placed device (SELECT tool). */
+    /** Live drag-move of a placed device (SELECT tool only, after drag threshold). */
     private PlacedDevice movingDevice;
+    /** Device under cursor on press; becomes {@link #movingDevice} only after drag threshold. */
+    private PlacedDevice moveCandidate;
     private boolean moveHistoryRecorded;
     private double moveGrabOffsetX;
     private double moveGrabOffsetY;
+    private double pressScreenX;
+    private double pressScreenY;
     private boolean dropHighlight;
+    /** Space held → temporary pan (CAD-style hand tool). */
+    private boolean spacePan;
+    /** Pixel drag distance before a SELECT press becomes a device move (vs click-select). */
+    private static final double MOVE_DRAG_THRESHOLD_PX = 5;
 
     public FloorPlanCanvas(FloorPlanHistory history) {
         this.history = Objects.requireNonNull(history);
@@ -122,6 +130,9 @@ public class FloorPlanCanvas {
         root.setFocusTraversable(true);
         canvas.setFocusTraversable(true);
         root.addEventHandler(KeyEvent.KEY_PRESSED, this::onKey);
+        root.addEventHandler(KeyEvent.KEY_RELEASED, this::onKeyReleased);
+        canvas.addEventHandler(KeyEvent.KEY_PRESSED, this::onKey);
+        canvas.addEventHandler(KeyEvent.KEY_RELEASED, this::onKeyReleased);
         root.setOnMouseClicked(e -> {
             root.requestFocus();
             canvas.requestFocus();
@@ -133,9 +144,11 @@ public class FloorPlanCanvas {
                 return;
             }
             cancelInProgress();
+            updateCursorForTool();
             status("Tool: " + b.label());
             redraw();
         });
+        updateCursorForTool();
     }
 
     public Pane getRoot() {
@@ -383,16 +396,46 @@ public class FloorPlanCanvas {
 
     // --- input ---
 
+    private void beginPan(double sx, double sy) {
+        panning = true;
+        moveCandidate = null;
+        movingDevice = null;
+        panAnchorX = sx;
+        panAnchorY = sy;
+        panOriginX = panX;
+        panOriginY = panY;
+        canvas.setCursor(javafx.scene.Cursor.CLOSED_HAND);
+    }
+
+    private void endPan() {
+        if (panning) {
+            panning = false;
+            updateCursorForTool();
+        }
+    }
+
+    private void updateCursorForTool() {
+        if (spacePan || getTool() == DrawTool.PAN) {
+            canvas.setCursor(javafx.scene.Cursor.OPEN_HAND);
+        } else {
+            canvas.setCursor(javafx.scene.Cursor.DEFAULT);
+        }
+    }
+
     private void onPress(MouseEvent e) {
         root.requestFocus();
+        canvas.requestFocus();
+        pressScreenX = e.getX();
+        pressScreenY = e.getY();
         Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
 
-        if (e.getButton() == MouseButton.MIDDLE || getTool() == DrawTool.PAN) {
-            panning = true;
-            panAnchorX = e.getX();
-            panAnchorY = e.getY();
-            panOriginX = panX;
-            panOriginY = panY;
+        // View pan: middle mouse, right mouse, Space+drag, or Pan tool — moves whole plan together
+        if (e.getButton() == MouseButton.MIDDLE
+                || e.getButton() == MouseButton.SECONDARY
+                || spacePan
+                || getTool() == DrawTool.PAN) {
+            beginPan(e.getX(), e.getY());
+            e.consume();
             return;
         }
 
@@ -401,7 +444,7 @@ public class FloorPlanCanvas {
         }
 
         switch (getTool()) {
-            case SELECT -> beginSelectOrMove(world);
+            case SELECT -> beginSelectOrMove(world, e.getX(), e.getY());
             case WALL -> {
                 if (wallStart == null) {
                     wallStart = world;
@@ -421,25 +464,33 @@ public class FloorPlanCanvas {
             case DOOR -> placeOpening(world, OpeningType.DOOR, 900);
             case WINDOW -> placeOpening(world, OpeningType.WINDOW, 1200);
             case PLACE_DEVICE -> placePendingDevice(world);
-            case PAN -> {
-                panning = true;
-                panAnchorX = e.getX();
-                panAnchorY = e.getY();
-                panOriginX = panX;
-                panOriginY = panY;
-            }
+            case PAN -> beginPan(e.getX(), e.getY());
         }
         redraw();
     }
 
     private void onDrag(MouseEvent e) {
+        // Promote SELECT device candidate to a real move only after a small drag
+        if (!panning && movingDevice == null && moveCandidate != null) {
+            double dx = e.getX() - pressScreenX;
+            double dy = e.getY() - pressScreenY;
+            if (Math.hypot(dx, dy) >= MOVE_DRAG_THRESHOLD_PX) {
+                movingDevice = moveCandidate;
+                moveCandidate = null;
+                moveHistoryRecorded = false;
+                status("Moving " + movingDevice.displayName());
+            }
+        }
+
         if (panning) {
             panX = panOriginX + (e.getX() - panAnchorX);
             panY = panOriginY + (e.getY() - panAnchorY);
             redraw();
+            e.consume();
             return;
         }
-        // Live move placed device
+
+        // Live move placed device (does not change pan — components stay fixed relative to plan)
         if (movingDevice != null) {
             Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
             double nx = world.x() - moveGrabOffsetX;
@@ -447,8 +498,6 @@ public class FloorPlanCanvas {
             Vec2 snapped = floorPlan.snap(new Vec2(nx, ny));
             if (!moveHistoryRecorded) {
                 history.push(floorPlan);
-                // re-resolve device after deep-copy snapshot of prior state
-                // (movingDevice still references live instance)
                 moveHistoryRecorded = true;
             }
             movingDevice.setPosition(snapped.x(), snapped.y());
@@ -463,6 +512,7 @@ public class FloorPlanCanvas {
             redraw();
             return;
         }
+
         Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
         if (getTool() == DrawTool.WALL && wallStart != null) {
             previewEnd = world;
@@ -475,9 +525,12 @@ public class FloorPlanCanvas {
 
     private void onRelease(MouseEvent e) {
         if (panning) {
-            panning = false;
+            endPan();
+            e.consume();
             return;
         }
+        // Click (no drag): keep selection only
+        moveCandidate = null;
         if (movingDevice != null) {
             PlacedDevice done = movingDevice;
             boolean moved = moveHistoryRecorded;
@@ -595,6 +648,15 @@ public class FloorPlanCanvas {
     }
 
     private void onKey(KeyEvent e) {
+        if (e.getCode() == KeyCode.SPACE && !e.isControlDown() && !e.isAltDown() && !e.isMetaDown()) {
+            if (!spacePan) {
+                spacePan = true;
+                updateCursorForTool();
+                status("Space+drag to pan the whole plan");
+            }
+            e.consume();
+            return;
+        }
         if (e.getCode() == KeyCode.ESCAPE) {
             pendingComponent = null;
             if (getTool() == DrawTool.PLACE_DEVICE) {
@@ -622,29 +684,60 @@ public class FloorPlanCanvas {
         }
     }
 
-    private void beginSelectOrMove(Vec2 world) {
-        double tol = 200 / Math.max(scale, 0.01);
-        double deviceTol = Math.max(tol, SymbolRenderer.hitRadiusMm());
-        var device = floorPlan.hitDevice(world, deviceTol);
+    private void onKeyReleased(KeyEvent e) {
+        if (e.getCode() == KeyCode.SPACE) {
+            spacePan = false;
+            if (!panning) {
+                updateCursorForTool();
+            }
+            e.consume();
+        }
+    }
+
+    /**
+     * Screen-pixel pick tolerance converted to plan millimetres.
+     * Keeps hit targets roughly constant on screen as zoom changes.
+     */
+    private double pickTolMm(double screenPx) {
+        return screenPx / Math.max(scale, 0.005);
+    }
+
+    private double devicePickTolMm() {
+        // Slightly larger than half the drawn symbol so targets stay easy to grab
+        return pickTolMm(SymbolRenderer.screenSize(scale) * 0.55);
+    }
+
+    /**
+     * SELECT tool: hit a device to select (drag past threshold to move it);
+     * otherwise select geometry or pan the whole drawing together.
+     */
+    private void beginSelectOrMove(Vec2 world, double sx, double sy) {
+        movingDevice = null;
+        moveCandidate = null;
+
+        var device = floorPlan.hitDevice(world, devicePickTolMm());
         if (device.isPresent()) {
             PlacedDevice d = device.get();
             selection.selectDevice(d);
             fireSelection();
-            // Start drag-move: grab offset so symbol doesn't jump under cursor
-            movingDevice = d;
+            // Do not move until the pointer actually drags — click alone only selects
+            moveCandidate = d;
             moveHistoryRecorded = false;
             moveGrabOffsetX = world.x() - d.xMm();
             moveGrabOffsetY = world.y() - d.yMm();
-            status("Drag to move · " + d.displayName());
+            status("Selected " + d.displayName() + " · drag to move · empty drag / Space / middle pans view");
             return;
         }
-        movingDevice = null;
+
         selectAt(world);
+        // Empty space (or non-device geometry click): drag pans the entire plan
+        beginPan(sx, sy);
+        status("Pan view · whole plan moves together");
     }
 
     private void selectAt(Vec2 world) {
-        double tol = 200 / Math.max(scale, 0.01); // ~px tolerance in mm
-        double deviceTol = Math.max(tol, SymbolRenderer.hitRadiusMm());
+        double tol = pickTolMm(10);
+        double deviceTol = devicePickTolMm();
         var device = floorPlan.hitDevice(world, deviceTol);
         if (device.isPresent()) {
             selection.selectDevice(device.get());
@@ -819,10 +912,12 @@ public class FloorPlanCanvas {
         roomPreviewCorner = null;
         panning = false;
         movingDevice = null;
+        moveCandidate = null;
         moveHistoryRecorded = false;
         if (getTool() != DrawTool.PLACE_DEVICE) {
             pendingComponent = null;
         }
+        updateCursorForTool();
     }
 
     private void status(String msg) {

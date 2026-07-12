@@ -339,9 +339,18 @@ public final class SymbolRenderer {
         return key.substring(0, 3).toUpperCase();
     }
 
-    /** Suggested hit radius in plan millimetres. */
+    /**
+     * Suggested hit radius in plan millimetres for the given zoom (px/mm).
+     * Matches roughly half the on-screen symbol so picks stay stable while zooming.
+     */
+    public static double hitRadiusMm(double scale) {
+        return (screenSize(scale) * 0.55) / Math.max(scale, 0.005);
+    }
+
+    /** @deprecated use {@link #hitRadiusMm(double)} with current canvas scale */
+    @Deprecated
     public static double hitRadiusMm() {
-        return 400;
+        return hitRadiusMm(0.04);
     }
 
     /**
