@@ -121,8 +121,8 @@ public class DrawingToolbar {
 
     private static String tooltipFor(DrawTool tool) {
         return switch (tool) {
-            case SELECT -> "Select elements (Delete to remove)";
-            case PAN -> "Pan the canvas (or middle-mouse)";
+            case SELECT -> "Select elements (Delete to remove). Two-finger trackpad scroll pans; Ctrl+scroll or pinch zooms.";
+            case PAN -> "Pan the canvas (middle-mouse, Pan tool, or two-finger trackpad scroll)";
             case WALL -> "Draw wall: click start, click end";
             case ROOM -> "Draw room: drag a rectangle";
             case DOOR -> "Place door on a wall";

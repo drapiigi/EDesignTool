@@ -28,6 +28,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.input.TransferMode;
+import javafx.scene.input.ZoomEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -103,7 +104,13 @@ public class FloorPlanCanvas {
         canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED, this::onDrag);
         canvas.addEventHandler(MouseEvent.MOUSE_RELEASED, this::onRelease);
         canvas.addEventHandler(MouseEvent.MOUSE_MOVED, this::onMove);
-        canvas.addEventHandler(ScrollEvent.SCROLL, this::onScroll);
+        // Filters so touchpad scroll/pinch are handled before parents steal them
+        canvas.addEventFilter(ScrollEvent.SCROLL, this::onScroll);
+        canvas.addEventFilter(ScrollEvent.SCROLL_STARTED, this::onScrollLifecycle);
+        canvas.addEventFilter(ScrollEvent.SCROLL_FINISHED, this::onScrollLifecycle);
+        canvas.addEventFilter(ZoomEvent.ANY, this::onZoom);
+        root.addEventFilter(ScrollEvent.SCROLL, this::onScroll);
+        root.addEventFilter(ZoomEvent.ANY, this::onZoom);
 
         // Drag-and-drop from symbol library
         canvas.setOnDragOver(this::onExternalDragOver);
@@ -112,8 +119,13 @@ public class FloorPlanCanvas {
         canvas.setOnDragDropped(this::onExternalDragDropped);
 
         root.setFocusTraversable(true);
+        canvas.setFocusTraversable(true);
         root.addEventHandler(KeyEvent.KEY_PRESSED, this::onKey);
-        root.setOnMouseClicked(e -> root.requestFocus());
+        root.setOnMouseClicked(e -> {
+            root.requestFocus();
+            canvas.requestFocus();
+        });
+        canvas.setOnMouseEntered(e -> canvas.requestFocus());
 
         tool.addListener((o, a, b) -> {
             if (a == b) {
@@ -494,10 +506,90 @@ public class FloorPlanCanvas {
         }
     }
 
+    /**
+     * Touchpad / mouse wheel handling:
+     * <ul>
+     *   <li>Two-finger scroll (trackpad): pan the plan</li>
+     *   <li>Ctrl/⌘/Alt + scroll, or discrete mouse wheel lines: zoom toward cursor</li>
+     *   <li>Pinch (ZoomEvent on supporting platforms): zoom</li>
+     * </ul>
+     */
     private void onScroll(ScrollEvent e) {
-        double factor = e.getDeltaY() > 0 ? 1.1 : 1 / 1.1;
-        zoomAt(e.getX(), e.getY(), factor);
+        double dx = e.getDeltaX();
+        double dy = e.getDeltaY();
+        // Some drivers report motion only in totalDelta*
+        if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
+            dx = e.getTotalDeltaX();
+            dy = e.getTotalDeltaY();
+        }
+
+        if (shouldZoomFromScroll(e, dx, dy)) {
+            if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6) {
+                dy = dx; // side-wheel / horizontal-as-zoom when zooming
+            }
+            if (Math.abs(dy) < 1e-6) {
+                e.consume();
+                return;
+            }
+            // Proportional zoom: small trackpad steps stay smooth; mouse wheel still snappy
+            double factor;
+            if (Math.abs(dy) < 8) {
+                factor = Math.exp(dy * 0.004);
+            } else {
+                factor = dy > 0 ? 1.12 : 1.0 / 1.12;
+            }
+            factor = Math.clamp(factor, 0.80, 1.25);
+            zoomAt(e.getX(), e.getY(), factor);
+            status("Zoom %.3f px/mm · two-finger pan · Ctrl+scroll zoom".formatted(scale));
+        } else {
+            // Two-finger pan (natural scrolling: finger moves content with deltas)
+            panX += dx;
+            panY += dy;
+            redraw();
+        }
         e.consume();
+    }
+
+    private void onScrollLifecycle(ScrollEvent e) {
+        // Consume started/finished so nested scroll panes do not steal the gesture
+        e.consume();
+    }
+
+    private void onZoom(ZoomEvent e) {
+        // Pinch-to-zoom (when the platform delivers ZoomEvent)
+        double factor = e.getZoomFactor();
+        if (!Double.isFinite(factor) || factor <= 0) {
+            e.consume();
+            return;
+        }
+        factor = Math.clamp(factor, 0.80, 1.25);
+        zoomAt(e.getX(), e.getY(), factor);
+        status("Zoom %.3f px/mm".formatted(scale));
+        e.consume();
+    }
+
+    /**
+     * Decide pan vs zoom for a scroll event.
+     * Trackpads emit pixel deltas often with both axes; mouse wheels use LINE units.
+     */
+    private static boolean shouldZoomFromScroll(ScrollEvent e, double dx, double dy) {
+        if (e.isControlDown() || e.isShortcutDown() || e.isAltDown() || e.isMetaDown()) {
+            return true;
+        }
+        // Classic mouse wheel: vertical lines, little/no horizontal component
+        if (e.getTextDeltaYUnits() == ScrollEvent.VerticalTextScrollUnits.LINES
+                && Math.abs(dx) < 0.5) {
+            return true;
+        }
+        // Some systems report mouse wheel as NONE with larger discrete deltas
+        if (e.getTextDeltaYUnits() == ScrollEvent.VerticalTextScrollUnits.NONE
+                && Math.abs(dx) < 0.5
+                && Math.abs(dy) >= 20
+                && !e.isInertia()) {
+            return true;
+        }
+        // Default: two-finger trackpad scroll pans
+        return false;
     }
 
     private void onKey(KeyEvent e) {
