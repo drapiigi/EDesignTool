@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 
 /**
  * Multi-storey switcher and add-floor controls (Phase 9).
+ * Combo updates are suppressed during programmatic refresh to avoid recursive onAction → StackOverflowError.
  */
 public class StoreyBar {
 
@@ -26,6 +27,8 @@ public class StoreyBar {
     };
     private Runnable onStructureChanged = () -> {
     };
+    /** When true, combo selection changes do not notify listeners. */
+    private boolean suppressEvents;
 
     public StoreyBar() {
         root = new HBox(8);
@@ -37,13 +40,18 @@ public class StoreyBar {
         lbl.getStyleClass().add("panel-body");
         storeyCombo.setPrefWidth(200);
         storeyCombo.setOnAction(e -> {
-            if (project == null || storeyCombo.getValue() == null) {
+            if (suppressEvents || project == null || storeyCombo.getValue() == null) {
                 return;
             }
             int idx = project.storeys().indexOf(storeyCombo.getValue());
-            if (idx >= 0) {
-                onStoreyChanged.accept(idx);
+            if (idx < 0) {
+                return;
             }
+            // Avoid re-entry when selection already matches active storey
+            if (idx == project.activeStoreyIndex()) {
+                return;
+            }
+            onStoreyChanged.accept(idx);
         });
 
         Button add = new Button("+ Floor");
@@ -81,16 +89,22 @@ public class StoreyBar {
     }
 
     public void refresh() {
-        if (project == null) {
-            storeyCombo.setItems(FXCollections.observableArrayList());
-            info.setText("");
-            return;
+        suppressEvents = true;
+        try {
+            if (project == null) {
+                storeyCombo.setItems(FXCollections.observableArrayList());
+                info.setText("");
+                return;
+            }
+            storeyCombo.setItems(FXCollections.observableArrayList(project.storeys()));
+            if (!project.storeys().isEmpty()) {
+                int idx = Math.clamp(project.activeStoreyIndex(), 0, project.storeys().size() - 1);
+                storeyCombo.getSelectionModel().select(idx);
+            }
+            info.setText(project.storeys().size() + " level(s)");
+        } finally {
+            suppressEvents = false;
         }
-        storeyCombo.setItems(FXCollections.observableArrayList(project.storeys()));
-        if (!project.storeys().isEmpty()) {
-            storeyCombo.getSelectionModel().select(project.activeStoreyIndex());
-        }
-        info.setText(project.storeys().size() + " level(s)");
     }
 
     private void addFloor() {
@@ -98,10 +112,11 @@ public class StoreyBar {
             return;
         }
         int maxLevel = project.storeys().stream().mapToInt(BuildingStorey::level).max().orElse(0);
-        BuildingStorey s = project.addStorey("Floor " + (maxLevel + 1), maxLevel + 1);
-        project.setActiveStoreyIndex(project.storeys().size() - 1);
+        project.addStorey("Floor " + (maxLevel + 1), maxLevel + 1);
+        int newIndex = project.storeys().size() - 1;
+        project.setActiveStoreyIndex(newIndex);
         refresh();
-        onStoreyChanged.accept(project.activeStoreyIndex());
+        onStoreyChanged.accept(newIndex);
         onStructureChanged.run();
     }
 

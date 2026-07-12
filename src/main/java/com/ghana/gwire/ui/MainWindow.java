@@ -320,10 +320,14 @@ public class MainWindow {
     }
 
     private void onModelChanged() {
-        markDirty();
+        if (project == null) {
+            return;
+        }
+        dirty = true;
+        project.touch();
         boqPanel.refresh();
-        // Invalidate stale calc report when geometry/devices change
-        if (project != null && project.lastReport() != null) {
+        // Invalidate stale calc report when geometry/devices change (idempotent)
+        if (project.lastReport() != null) {
             project.setLastReport(null);
             calcResultsPanel.clear();
         }

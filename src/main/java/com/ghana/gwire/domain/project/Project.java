@@ -105,7 +105,11 @@ public final class Project {
         if (storeys.isEmpty()) {
             return;
         }
-        activeStoreyIndex = Math.clamp(index, 0, storeys.size() - 1);
+        int next = Math.clamp(index, 0, storeys.size() - 1);
+        if (next == activeStoreyIndex) {
+            return;
+        }
+        activeStoreyIndex = next;
         touch();
     }
 
@@ -164,6 +168,9 @@ public final class Project {
     }
 
     public void setLastReport(DesignReport lastReport) {
+        if (this.lastReport == lastReport) {
+            return;
+        }
         this.lastReport = lastReport;
         touch();
     }

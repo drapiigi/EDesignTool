@@ -30,6 +30,8 @@ public class DrawingToolbar {
     };
     private Runnable fitAction = () -> {
     };
+    /** Suppress listener when selecting tools programmatically (avoids setTool ↔ selectTool recursion). */
+    private boolean suppressToolEvents;
 
     public DrawingToolbar() {
         root = new HBox(6);
@@ -44,6 +46,9 @@ public class DrawingToolbar {
             btn.getStyleClass().add("tool-button");
             btn.setTooltip(new Tooltip(tooltipFor(tool)));
             btn.setOnAction(e -> {
+                if (suppressToolEvents) {
+                    return;
+                }
                 if (btn.isSelected()) {
                     toolListener.accept(tool);
                 }
@@ -51,7 +56,12 @@ public class DrawingToolbar {
             buttons.put(tool, btn);
             root.getChildren().add(btn);
         }
-        buttons.get(DrawTool.SELECT).setSelected(true);
+        suppressToolEvents = true;
+        try {
+            buttons.get(DrawTool.SELECT).setSelected(true);
+        } finally {
+            suppressToolEvents = false;
+        }
 
         root.getChildren().add(new Separator(Orientation.VERTICAL));
 
@@ -91,8 +101,14 @@ public class DrawingToolbar {
 
     public void selectTool(DrawTool tool) {
         ToggleButton btn = buttons.get(tool);
-        if (btn != null) {
+        if (btn == null || btn.isSelected()) {
+            return;
+        }
+        suppressToolEvents = true;
+        try {
             btn.setSelected(true);
+        } finally {
+            suppressToolEvents = false;
         }
     }
 

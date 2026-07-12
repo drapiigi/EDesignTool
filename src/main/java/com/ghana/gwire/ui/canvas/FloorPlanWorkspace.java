@@ -64,6 +64,7 @@ public class FloorPlanWorkspace {
 
         canvas.setStatusSink(msg -> statusSink.accept(msg));
         canvas.setSelectionListener(() -> selectionListener.run());
+        canvas.setModelChangeListener(() -> modelChangeListener.run());
 
         VBox.setVgrow(canvas.getRoot(), Priority.ALWAYS);
         root = new VBox(toolbar.getRoot(), storeyBar.getRoot(), canvas.getRoot());
@@ -104,11 +105,10 @@ public class FloorPlanWorkspace {
     public void setSelectionListener(Runnable selectionListener) {
         this.selectionListener = selectionListener == null ? () -> {
         } : selectionListener;
-        canvas.setSelectionListener(() -> {
-            this.selectionListener.run();
-            // Device moves / edits fire selection updates — treat as model changes for live BOQ
-            modelChangeListener.run();
-        });
+        // Selection-only updates must NOT call modelChangeListener (that marks dirty / clears calc
+        // and previously re-entered via BOQ/status refresh chains). Device moves call
+        // modelChangeListener from canvas drag-end via status callbacks where needed.
+        canvas.setSelectionListener(() -> this.selectionListener.run());
     }
 
     public void setModelChangeListener(Runnable modelChangeListener) {
@@ -138,7 +138,13 @@ public class FloorPlanWorkspace {
         if (project == null) {
             return;
         }
-        project.setActiveStoreyIndex(index);
+        int clamped = Math.clamp(index, 0, Math.max(0, project.storeys().size() - 1));
+        // Idempotent: avoid refresh → combo select → onAction → switchStorey loops
+        if (clamped == project.activeStoreyIndex()
+                && canvas.getFloorPlan() == project.floorPlan()) {
+            return;
+        }
+        project.setActiveStoreyIndex(clamped);
         canvas.setFloorPlan(project.floorPlan());
         reloadBackgroundRaster();
         canvas.fitToWindow();

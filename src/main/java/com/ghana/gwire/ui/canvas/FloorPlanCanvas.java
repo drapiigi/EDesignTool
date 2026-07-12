@@ -58,6 +58,8 @@ public class FloorPlanCanvas {
     };
     private Runnable selectionListener = () -> {
     };
+    private Runnable modelChangeListener = () -> {
+    };
 
     /** Pixels per millimetre. */
     private double scale = 0.04;
@@ -114,6 +116,9 @@ public class FloorPlanCanvas {
         root.setOnMouseClicked(e -> root.requestFocus());
 
         tool.addListener((o, a, b) -> {
+            if (a == b) {
+                return;
+            }
             cancelInProgress();
             status("Tool: " + b.label());
             redraw();
@@ -133,6 +138,9 @@ public class FloorPlanCanvas {
     }
 
     public void setTool(DrawTool t) {
+        if (t == null || t == tool.get()) {
+            return;
+        }
         tool.set(t);
     }
 
@@ -159,6 +167,7 @@ public class FloorPlanCanvas {
         floorPlan.addDevice(device);
         selection.selectDevice(device);
         fireSelection();
+        fireModelChanged();
         status("Placed " + component.name() + " at (%.0f, %.0f) mm".formatted(pos.x(), pos.y()));
         redraw();
         return device;
@@ -197,6 +206,15 @@ public class FloorPlanCanvas {
     public void setSelectionListener(Runnable selectionListener) {
         this.selectionListener = selectionListener == null ? () -> {
         } : selectionListener;
+    }
+
+    public void setModelChangeListener(Runnable modelChangeListener) {
+        this.modelChangeListener = modelChangeListener == null ? () -> {
+        } : modelChangeListener;
+    }
+
+    private void fireModelChanged() {
+        modelChangeListener.run();
     }
 
     public void registerRaster(String path, Image image) {
@@ -296,6 +314,7 @@ public class FloorPlanCanvas {
         selection.clear();
         redraw();
         fireSelection();
+        fireModelChanged();
         status("Deleted selection");
     }
 
@@ -447,12 +466,14 @@ public class FloorPlanCanvas {
         }
         if (movingDevice != null) {
             PlacedDevice done = movingDevice;
+            boolean moved = moveHistoryRecorded;
             movingDevice = null;
-            if (moveHistoryRecorded) {
+            moveHistoryRecorded = false;
+            if (moved) {
                 status("Moved %s to (%.0f, %.0f) mm"
                         .formatted(done.displayName(), done.xMm(), done.yMm()));
+                fireModelChanged();
             }
-            moveHistoryRecorded = false;
             fireSelection();
             redraw();
             return;
@@ -656,6 +677,7 @@ public class FloorPlanCanvas {
         floorPlan.addWall(wall);
         selection.selectWall(wall);
         fireSelection();
+        fireModelChanged();
         status("Wall added · %.0f mm".formatted(wall.lengthMm()));
     }
 
@@ -674,6 +696,7 @@ public class FloorPlanCanvas {
         floorPlan.addRoom(room);
         selection.selectRoom(room);
         fireSelection();
+        fireModelChanged();
         status("Room added · %.2f m²".formatted(room.areaM2()));
     }
 
@@ -691,6 +714,7 @@ public class FloorPlanCanvas {
         floorPlan.addOpening(opening);
         selection.selectOpening(opening);
         fireSelection();
+        fireModelChanged();
         status(type + " placed on wall");
     }
 

@@ -35,6 +35,7 @@ public class PropertiesPanel {
     };
     private Runnable onGeometryChanged = () -> {
     };
+    private boolean suppressSupplyEvents;
 
     public PropertiesPanel() {
         Label title = new Label("Properties");
@@ -64,7 +65,12 @@ public class PropertiesPanel {
         supplyCombo = new ComboBox<>();
         supplyCombo.getItems().addAll(ProjectSettings.SupplyType.values());
         supplyCombo.setMaxWidth(Double.MAX_VALUE);
-        supplyCombo.setOnAction(e -> applySupply());
+        supplyCombo.setOnAction(e -> {
+            if (suppressSupplyEvents) {
+                return;
+            }
+            applySupply();
+        });
 
         GridPane projectGrid = formGrid();
         int row = 0;
@@ -161,7 +167,12 @@ public class PropertiesPanel {
         }
         projectNameField.setText(project.name());
         houseTypeField.setText(project.settings().houseType());
-        supplyCombo.getSelectionModel().select(project.settings().supplyType());
+        suppressSupplyEvents = true;
+        try {
+            supplyCombo.getSelectionModel().select(project.settings().supplyType());
+        } finally {
+            suppressSupplyEvents = false;
+        }
     }
 
     public void showSelection(SelectionModel selection) {
