@@ -52,7 +52,7 @@
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Maven + JavaFX shell, menus, themes, layout placeholders | **Done** |
-| 2 | Floor plan module (draw + image/PDF import) | Planned |
+| 2 | Floor plan module (draw + image/PDF import) | **Done** |
 | 3 | Electrical symbol library + starter component DB | Planned |
 | 4 | Calculation & standards engine | Planned |
 | 5 | AI generation integration | Planned |
@@ -122,18 +122,25 @@
 - Maven project (`gwire-designer` 0.1.0-SNAPSHOT)
 - Dependencies: JavaFX 23.0.2, H2, PDFBox, Jackson, SLF4J/Logback, JUnit 5
 - Application shell: `Main`, `GWireApp`, `MainWindow`
-- Menus: File / Edit / View / Design / Tools / Help (future items disabled)
+- Menus: File / Edit / View / Design / Tools / Help
 - Dark/light themes (`theme-dark.css`, `theme-light.css`)
-- Placeholders: canvas, properties, BOQ table schema, status bar
-- Unit tests for theme manager + stylesheet presence
+
+### Done (Phase 2)
+
+- Domain model: `FloorPlan`, `Wall`, `Room`, `Opening`, `BackgroundImage`, `Project`, `ProjectSettings`
+- Geometry helpers: `Vec2`, `Segment2` (hit-test, snap)
+- Canvas: pan/zoom, grid (500 mm snap), tools Select / Pan / Wall / Room / Door / Window
+- Import: PNG/JPEG/GIF/BMP/WebP + PDF page 1 via PDFBox → background raster
+- Undo/redo stack for geometry (`FloorPlanHistory`)
+- Properties panel: project name, house type, supply, selection details, room rename
+- Unit tests: geometry, floor plan, history, import
 
 ### Open tasks
 
-- [ ] Phase 2: floor plan canvas + image/PDF import
 - [ ] Phase 3: symbol library + seed component database
 - [ ] Phase 4: load calc, cable sizing, voltage drop, diversity
 - [ ] Phase 5: AI generate design (vision + LLM + rule fallback)
-- [ ] Phase 6: live model updates, BOQ, standards warnings
+- [ ] Phase 6: live model updates, BOQ, standards warnings, project save/load
 - [ ] Phase 7: PDF exports (plans, SLD, schedules, BOQ, checklist)
 - [ ] Phase 8: jpackage installers, sample project, full docs
 
@@ -144,7 +151,9 @@
 ```
 src/main/java/com/ghana/gwire/
   Main.java, GWireApp.java
-  ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/
+  domain/geometry/, domain/floorplan/, domain/project/
+  service/importing/, service/history/
+  ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/
 src/main/resources/css/
 src/test/java/
 pom.xml

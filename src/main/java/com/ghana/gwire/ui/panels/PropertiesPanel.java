@@ -1,32 +1,121 @@
 package com.ghana.gwire.ui.panels;
 
+import com.ghana.gwire.domain.floorplan.BackgroundImage;
+import com.ghana.gwire.domain.floorplan.Opening;
+import com.ghana.gwire.domain.floorplan.Room;
+import com.ghana.gwire.domain.floorplan.Wall;
+import com.ghana.gwire.domain.project.Project;
+import com.ghana.gwire.domain.project.ProjectSettings;
+import com.ghana.gwire.ui.canvas.SelectionModel;
 import javafx.geometry.Insets;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * Selection / project properties sidebar (populated in later phases).
+ * Project settings and selection properties.
  */
 public class PropertiesPanel {
 
     private final VBox root;
+    private final Label selectionTitle;
+    private final Label selectionBody;
+    private final TextField projectNameField;
+    private final TextField houseTypeField;
+    private final ComboBox<ProjectSettings.SupplyType> supplyCombo;
+    private final TextField roomNameField;
+
+    private Project project;
+    private SelectionModel selection;
+    private Runnable onProjectChanged = () -> {
+    };
+    private Runnable onGeometryChanged = () -> {
+    };
 
     public PropertiesPanel() {
         Label title = new Label("Properties");
         title.getStyleClass().add("panel-title");
 
-        Label body = new Label(
-                "Project settings and selected-component properties will appear here.\n\n"
-                        + "Defaults (Ghana):\n"
-                        + "• Supply: 230 V / 50 Hz single-phase\n"
-                        + "• Earthing: TN-S / TT per L.I. 2008 practice\n"
-                        + "• Diversity factors: Energy Commission guidance"
-        );
-        body.getStyleClass().add("panel-body");
-        body.setWrapText(true);
+        Label projectHeading = new Label("Project");
+        projectHeading.getStyleClass().add("panel-subtitle");
 
-        VBox content = new VBox(10, title, body);
+        projectNameField = new TextField();
+        projectNameField.setPromptText("Project name");
+        projectNameField.setOnAction(e -> applyProjectName());
+        projectNameField.focusedProperty().addListener((o, was, is) -> {
+            if (was && !is) {
+                applyProjectName();
+            }
+        });
+
+        houseTypeField = new TextField();
+        houseTypeField.setPromptText("House type");
+        houseTypeField.setOnAction(e -> applyHouseType());
+        houseTypeField.focusedProperty().addListener((o, was, is) -> {
+            if (was && !is) {
+                applyHouseType();
+            }
+        });
+
+        supplyCombo = new ComboBox<>();
+        supplyCombo.getItems().addAll(ProjectSettings.SupplyType.values());
+        supplyCombo.setMaxWidth(Double.MAX_VALUE);
+        supplyCombo.setOnAction(e -> applySupply());
+
+        GridPane projectGrid = formGrid();
+        int row = 0;
+        projectGrid.add(label("Name"), 0, row);
+        projectGrid.add(projectNameField, 1, row++);
+        projectGrid.add(label("House"), 0, row);
+        projectGrid.add(houseTypeField, 1, row++);
+        projectGrid.add(label("Supply"), 0, row);
+        projectGrid.add(supplyCombo, 1, row++);
+
+        Label selHeading = new Label("Selection");
+        selHeading.getStyleClass().add("panel-subtitle");
+        selectionTitle = new Label("Nothing selected");
+        selectionTitle.getStyleClass().add("panel-body");
+        selectionBody = new Label(
+                "Draw walls and rooms on the canvas.\n"
+                        + "Import a PDF/image floor plan as background."
+        );
+        selectionBody.getStyleClass().add("panel-body");
+        selectionBody.setWrapText(true);
+
+        roomNameField = new TextField();
+        roomNameField.setPromptText("Room name");
+        roomNameField.setVisible(false);
+        roomNameField.setManaged(false);
+        roomNameField.setOnAction(e -> applyRoomName());
+        roomNameField.focusedProperty().addListener((o, was, is) -> {
+            if (was && !is) {
+                applyRoomName();
+            }
+        });
+
+        Label standards = new Label(
+                "Defaults (Ghana L.I. 2008 context):\n"
+                        + "• 230 V / 50 Hz single-phase\n"
+                        + "• Grid snap 500 mm\n"
+                        + "• Units: millimetres on plan"
+        );
+        standards.getStyleClass().add("panel-footer");
+        standards.setWrapText(true);
+
+        VBox content = new VBox(10,
+                title,
+                projectHeading,
+                projectGrid,
+                selHeading,
+                selectionTitle,
+                roomNameField,
+                selectionBody,
+                standards
+        );
         content.setPadding(new Insets(12));
         content.getStyleClass().add("panel-content");
 
@@ -36,10 +125,157 @@ public class PropertiesPanel {
 
         root = new VBox(scroll);
         root.getStyleClass().addAll("side-panel", "properties-panel");
-        VBox.setVgrow(scroll, javafx.scene.layout.Priority.ALWAYS);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        setProject(null);
     }
 
     public VBox getRoot() {
         return root;
+    }
+
+    public void setOnProjectChanged(Runnable onProjectChanged) {
+        this.onProjectChanged = onProjectChanged == null ? () -> {
+        } : onProjectChanged;
+    }
+
+    public void setOnGeometryChanged(Runnable onGeometryChanged) {
+        this.onGeometryChanged = onGeometryChanged == null ? () -> {
+        } : onGeometryChanged;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
+        boolean enabled = project != null;
+        projectNameField.setDisable(!enabled);
+        houseTypeField.setDisable(!enabled);
+        supplyCombo.setDisable(!enabled);
+        if (project == null) {
+            projectNameField.clear();
+            houseTypeField.clear();
+            supplyCombo.getSelectionModel().clearSelection();
+            selectionTitle.setText("No project");
+            selectionBody.setText("File → New Project to begin.");
+            hideRoomName();
+            return;
+        }
+        projectNameField.setText(project.name());
+        houseTypeField.setText(project.settings().houseType());
+        supplyCombo.getSelectionModel().select(project.settings().supplyType());
+    }
+
+    public void showSelection(SelectionModel selection) {
+        this.selection = selection;
+        if (selection == null || selection.isEmpty()) {
+            selectionTitle.setText("Nothing selected");
+            selectionBody.setText("Select a wall, room, door, or window.");
+            hideRoomName();
+            return;
+        }
+        switch (selection.kind()) {
+            case WALL -> {
+                Wall w = selection.wall();
+                selectionTitle.setText("Wall");
+                selectionBody.setText(
+                        "Length: %.0f mm\nThickness: %.0f mm\nStart: (%.0f, %.0f)\nEnd: (%.0f, %.0f)"
+                                .formatted(w.lengthMm(), w.thicknessMm(),
+                                        w.start().x(), w.start().y(),
+                                        w.end().x(), w.end().y())
+                );
+                hideRoomName();
+            }
+            case ROOM -> {
+                Room r = selection.room();
+                selectionTitle.setText("Room");
+                roomNameField.setText(r.name());
+                roomNameField.setVisible(true);
+                roomNameField.setManaged(true);
+                selectionBody.setText(
+                        "Size: %.0f × %.0f mm\nArea: %.2f m²\nOrigin: (%.0f, %.0f)"
+                                .formatted(r.widthMm(), r.heightMm(), r.areaM2(), r.x(), r.y())
+                );
+            }
+            case OPENING -> {
+                Opening o = selection.opening();
+                selectionTitle.setText(o.type().name());
+                selectionBody.setText(
+                        "Width: %.0f mm\nPosition along wall: %.0f%%\nWall id: %s"
+                                .formatted(o.widthMm(), o.t() * 100, shortId(o.wallId()))
+                );
+                hideRoomName();
+            }
+            case NONE -> {
+                selectionTitle.setText("Nothing selected");
+                selectionBody.setText("Select a wall, room, door, or window.");
+                hideRoomName();
+            }
+        }
+        if (project != null && project.floorPlan().background() != null) {
+            BackgroundImage bg = project.floorPlan().background();
+            selectionBody.setText(selectionBody.getText()
+                    + "\n\nBackground: " + bg.sourceLabel()
+                    + "\nScale: " + String.format("%.2f mm/px", bg.mmPerPixel()));
+        }
+    }
+
+    private void hideRoomName() {
+        roomNameField.setVisible(false);
+        roomNameField.setManaged(false);
+    }
+
+    private void applyProjectName() {
+        if (project == null) {
+            return;
+        }
+        project.setName(projectNameField.getText());
+        onProjectChanged.run();
+    }
+
+    private void applyHouseType() {
+        if (project == null) {
+            return;
+        }
+        project.settings().setHouseType(houseTypeField.getText());
+        project.touch();
+        onProjectChanged.run();
+    }
+
+    private void applySupply() {
+        if (project == null || supplyCombo.getValue() == null) {
+            return;
+        }
+        project.settings().setSupplyType(supplyCombo.getValue());
+        project.touch();
+        onProjectChanged.run();
+    }
+
+    private void applyRoomName() {
+        if (selection == null || selection.kind() != SelectionModel.Kind.ROOM) {
+            return;
+        }
+        selection.room().setName(roomNameField.getText());
+        if (project != null) {
+            project.touch();
+        }
+        showSelection(selection);
+        onGeometryChanged.run();
+    }
+
+    private static GridPane formGrid() {
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.getColumnConstraints().clear();
+        return grid;
+    }
+
+    private static Label label(String text) {
+        Label l = new Label(text);
+        l.getStyleClass().add("panel-body");
+        return l;
+    }
+
+    private static String shortId(String id) {
+        return id == null ? "" : id.substring(0, Math.min(8, id.length()));
     }
 }

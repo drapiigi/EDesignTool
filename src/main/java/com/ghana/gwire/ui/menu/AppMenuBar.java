@@ -1,6 +1,7 @@
 package com.ghana.gwire.ui.menu;
 
 import com.ghana.gwire.ui.MainWindow;
+import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.theme.ThemeManager;
 import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Menu;
@@ -12,7 +13,7 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 
 /**
- * Application menu bar. Phase 1 wires shell actions; later phases fill handlers.
+ * Application menu bar wired to Phase 2 floor-plan actions.
  */
 public class AppMenuBar {
 
@@ -23,18 +24,22 @@ public class AppMenuBar {
         MenuItem newItem = item("_New Project", KeyCode.N, true, window::newProject);
         MenuItem openItem = item("_Open…", KeyCode.O, true, window::openProject);
         MenuItem saveItem = item("_Save", KeyCode.S, true, window::saveProject);
+        MenuItem importItem = item("_Import Floor Plan…", KeyCode.I, true, window::importFloorPlan);
         MenuItem exitItem = item("E_xit", KeyCode.Q, true, window::quit);
-        file.getItems().addAll(newItem, openItem, saveItem, new SeparatorMenuItem(), exitItem);
+        file.getItems().addAll(
+                newItem, openItem, saveItem,
+                new SeparatorMenuItem(),
+                importItem,
+                new SeparatorMenuItem(),
+                exitItem
+        );
 
         Menu edit = new Menu("_Edit");
         edit.getItems().addAll(
-                disabled("_Undo"),
-                disabled("_Redo"),
+                item("_Undo", KeyCode.Z, true, window::undo),
+                item("_Redo", KeyCode.Y, true, window::redo),
                 new SeparatorMenuItem(),
-                disabled("Cu_t"),
-                disabled("_Copy"),
-                disabled("_Paste"),
-                disabled("_Delete")
+                item("_Delete", KeyCode.DELETE, false, window::deleteSelection)
         );
 
         Menu view = new Menu("_View");
@@ -51,16 +56,21 @@ public class AppMenuBar {
         view.getItems().addAll(
                 darkMode,
                 new SeparatorMenuItem(),
-                disabled("Zoom _In"),
-                disabled("Zoom _Out"),
-                disabled("_Fit to Window")
+                item("Zoom _In", KeyCode.EQUALS, true, window::zoomIn),
+                item("Zoom _Out", KeyCode.MINUS, true, window::zoomOut),
+                item("_Fit to Window", KeyCode.DIGIT0, true, window::fitToWindow)
         );
 
         Menu design = new Menu("_Design");
         design.getItems().addAll(
                 disabled("_AI Generate Design…"),
-                disabled("Add _Room"),
-                disabled("Add _Wall"),
+                new SeparatorMenuItem(),
+                item("Tool: _Select", null, false, () -> window.setTool(DrawTool.SELECT)),
+                item("Tool: _Wall", null, false, () -> window.setTool(DrawTool.WALL)),
+                item("Tool: _Room", null, false, () -> window.setTool(DrawTool.ROOM)),
+                item("Tool: _Door", null, false, () -> window.setTool(DrawTool.DOOR)),
+                item("Tool: Windo_w", null, false, () -> window.setTool(DrawTool.WINDOW)),
+                item("Tool: _Pan", null, false, () -> window.setTool(DrawTool.PAN)),
                 new SeparatorMenuItem(),
                 disabled("Insert _Symbol…")
         );
@@ -90,10 +100,13 @@ public class AppMenuBar {
     private static MenuItem item(String text, KeyCode key, boolean control, Runnable action) {
         MenuItem mi = new MenuItem(text);
         if (key != null) {
-            mi.setAccelerator(new KeyCodeCombination(
-                    key,
-                    control ? KeyCombination.SHORTCUT_DOWN : KeyCombination.SHORTCUT_ANY
-            ));
+            if (control) {
+                mi.setAccelerator(new KeyCodeCombination(key, KeyCombination.SHORTCUT_DOWN));
+            } else if (key == KeyCode.DELETE) {
+                mi.setAccelerator(new KeyCodeCombination(KeyCode.DELETE));
+            } else {
+                mi.setAccelerator(new KeyCodeCombination(key));
+            }
         }
         mi.setOnAction(e -> action.run());
         return mi;

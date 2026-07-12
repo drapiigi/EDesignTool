@@ -137,3 +137,46 @@
 .button:focused {
     -fx-border-color: #2f9e6a;
 }
+
+.drawing-toolbar {
+    -fx-background-color: #1a2030;
+    -fx-border-color: #2a3344;
+    -fx-border-width: 0 0 1 0;
+}
+
+.tool-button, .tool-action {
+    -fx-background-color: #2a3344;
+    -fx-text-fill: #e8edf5;
+    -fx-background-radius: 4;
+    -fx-padding: 4 10 4 10;
+    -fx-cursor: hand;
+}
+
+.tool-button:hover, .tool-action:hover {
+    -fx-background-color: #344056;
+}
+
+.tool-button:selected {
+    -fx-background-color: #2f9e6a;
+    -fx-text-fill: #0e1219;
+    -fx-font-weight: bold;
+}
+
+.floor-plan-canvas-host, .floor-plan-workspace {
+    -fx-background-color: #0e1219;
+}
+
+.panel-subtitle {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #c5cedc;
+    -fx-padding: 6 0 0 0;
+}
+
+.text-field, .combo-box {
+    -fx-background-color: #1a2030;
+    -fx-text-fill: #e8edf5;
+    -fx-border-color: #2a3344;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}

@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a compliant design with
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, Apache PDFBox |
-| **Status** | Phase 1 — application shell |
+| **Status** | Phase 2 — floor plan draw + import |
 
 See **[AGENTS.md](AGENTS.md)** for architecture, phases, and agent workflow.
 
@@ -57,25 +57,38 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 
 ---
 
-## Phase 1 features
+## Features (through Phase 2)
 
-- Main window with professional dark/light themes
-- Menu bar (File, Edit, View, Design, Tools, Help)
-- Canvas placeholder (floor plan arrives Phase 2)
-- Properties + BOQ side panels
-- Status bar with L.I. 2008 / 230 V context
-- About dialog
+- Main window with dark/light themes, menus, status bar
+- Floor plan canvas (mm world units, 500 mm grid snap)
+- Tools: Select, Pan, Wall, Room, Door, Window
+- Import floor plan background: images + PDF (page 1)
+- Undo/redo, delete selection, zoom / fit view
+- Project properties (name, house type, 230 V / 400 V supply)
+- BOQ panel placeholder (populated in later phases)
+
+### Canvas tips
+
+| Action | How |
+|--------|-----|
+| Draw wall | Tool **Wall** → click start → click end |
+| Draw room | Tool **Room** → drag rectangle |
+| Door / window | Tool **Door**/**Window** → click near a wall |
+| Pan | Tool **Pan**, or middle-mouse drag |
+| Zoom | Mouse wheel · View menu |
+| Delete | Select element → Delete |
+| Import plan | Toolbar **Import plan…** or File → Import Floor Plan |
 
 ---
 
 ## Roadmap
 
 1. **Phase 1** — Maven + JavaFX shell ✅  
-2. **Phase 2** — Floor plan drawing + import  
+2. **Phase 2** — Floor plan drawing + import ✅  
 3. **Phase 3** — Symbol library + starter component DB  
 4. **Phase 4** — Calculation & standards engine  
 5. **Phase 5** — AI design generation  
-6. **Phase 6** — Real-time updates, BOQ, validation  
+6. **Phase 6** — Real-time updates, BOQ, validation, save/load  
 7. **Phase 7** — PDF export & reports  
 8. **Phase 8** — Packaging, sample project, polish  
 
