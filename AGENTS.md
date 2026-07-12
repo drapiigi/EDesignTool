@@ -57,7 +57,7 @@
 | 4 | Calculation & standards engine | **Done** |
 | 5 | AI generation integration | **Done** (rules + optional LLM + co-pilot + vision) |
 | 6 | Project save/load + live model updates | **Done** |
-| 7 | PDF export & reporting | Planned |
+| 7 | PDF export & reporting | **Done** |
 | 8 | Packaging, polish, sample 3-bed house, docs | Planned |
 
 ---
@@ -170,9 +170,14 @@
 - Reload background raster on open; live BOQ refresh on model changes
 - Stale calc report cleared when geometry/devices change
 
+### Done (Phase 7)
+
+- `PdfExportService` (PDFBox): multi-page report — cover, floor plan drawing, circuit schedule, BOQ, compliance checklist
+- File → Export PDF Report (Ctrl+E); runs calc if needed
+- Unit test loads generated PDF and checks page count
+
 ### Open tasks
 
-- [ ] Phase 7: PDF exports (plans, SLD, schedules, BOQ, checklist)
 - [ ] Phase 8: jpackage installers, sample project, full docs
 
 ---
@@ -185,7 +190,7 @@ src/main/java/com/ghana/gwire/
   domain/geometry/, domain/floorplan/, domain/project/, domain/components/, domain/calc/
   db/ (H2 library, seed, repository)
   ai/ (Phase 5 design generation)
-  service/importing/, service/history/, service/calc/, service/persist/
+  service/importing/, service/history/, service/calc/, service/persist/, service/export/
   ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/, ui/symbols/
 src/main/resources/css/
 src/test/java/

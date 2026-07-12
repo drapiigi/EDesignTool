@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a compliant design with
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, Apache PDFBox |
-| **Status** | Phase 6 — project save/load |
+| **Status** | Phase 7 — PDF export |
 
 See **[AGENTS.md](AGENTS.md)** for architecture, phases, and agent workflow.
 
@@ -53,7 +53,7 @@ Prefer `mvn javafx:run` during development. Installers via **jpackage** land in 
 
 ---
 
-## Features (through Phase 6)
+## Features (through Phase 7)
 
 - Floor plan canvas (mm units, grid snap, pan/zoom)
 - Walls, rooms, doors, windows · image/PDF background import
@@ -66,6 +66,7 @@ Prefer `mvn javafx:run` during development. Installers via **jpackage** land in 
 - BOQ (devices + estimated circuit cables)
 - **Save/Open** projects as `.gwire` JSON (File menu)
 - Live BOQ refresh when devices move or change
+- **PDF report export** (cover, plan, circuit schedule, BOQ, checklist)
 
 ### Workflow tips
 
@@ -80,6 +81,7 @@ Prefer `mvn javafx:run` during development. Installers via **jpackage** land in 
 | Rules only | **Design → AI Generate (rules only)** |
 | Co-pilot | **Tools → AI Co-pilot Chat** (e.g. `add socket in Living`) |
 | Save / Open | **File → Save** (Ctrl+S) · **Open** (Ctrl+O) · **Save As** |
+| **Export PDF** | **File → Export PDF Report** (Ctrl+E) |
 | Recalculate | **Tools → Recalculate Loads** (Ctrl+R) |
 | Validate | **Tools → Validate Standards** (Ctrl+L) |
 
@@ -117,7 +119,7 @@ Never commit API keys. Component library DB: `~/.gwire/library`.
 4. **Phase 4** — Calculation & standards engine ✅  
 5. **Phase 5** — AI design generation ✅  
 6. **Phase 6** — Project save/load, richer live updates ✅  
-7. **Phase 7** — PDF export & reports  
+7. **Phase 7** — PDF export & reports ✅  
 8. **Phase 8** — Packaging, sample project, polish  
 
 ---

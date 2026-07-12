@@ -9,6 +9,7 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
+import com.ghana.gwire.service.export.PdfExportService;
 import com.ghana.gwire.service.persist.ProjectStore;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
@@ -54,6 +55,7 @@ public class MainWindow {
     private final AppMenuBar menuBar;
     private final CalcEngine calcEngine = new CalcEngine();
     private final ProjectStore projectStore = new ProjectStore();
+    private final PdfExportService pdfExportService = new PdfExportService();
 
     private Project project;
     private Path projectPath;
@@ -321,6 +323,62 @@ public class MainWindow {
 
     public void importFloorPlan() {
         workspace.importFloorPlan();
+    }
+
+    /**
+     * Export multi-page PDF: cover, floor plan, circuit schedule, BOQ, checklist.
+     */
+    public void exportPdfReport() {
+        if (project == null) {
+            statusBar.setMessage("No project to export.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export PDF report");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PDF (*.pdf)", "*.pdf")
+        );
+        chooser.setInitialFileName(sanitizeFileName(project.name()) + "-report.pdf");
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
+            return;
+        }
+        Path path = file.toPath();
+        if (!path.getFileName().toString().toLowerCase().endsWith(".pdf")) {
+            path = path.resolveSibling(path.getFileName().toString() + ".pdf");
+        }
+        try {
+            statusBar.setMessage("Exporting PDF report…");
+            // Ensure calc is current for schedule/BOQ/checklist
+            if (project.lastReport() == null) {
+                DesignReport report = calcEngine.calculate(project, LibraryBootstrap.get());
+                project.setLastReport(report);
+                calcResultsPanel.showReport(report);
+            }
+            pdfExportService.export(project, path);
+            boqPanel.refresh();
+            refreshTitleAndStatus();
+            statusBar.setMessage("Exported PDF: " + path.getFileName());
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.initOwner(stage);
+            info.setTitle("PDF export");
+            info.setHeaderText("Report saved");
+            info.setContentText(
+                    path.toAbsolutePath()
+                            + "\n\nPages: cover, floor plan, circuit schedule, BOQ, compliance checklist.\n"
+                            + "Preliminary design only — CEWP verification required."
+            );
+            info.showAndWait();
+        } catch (Exception ex) {
+            log.error("PDF export failed", ex);
+            statusBar.setMessage("PDF export failed: " + ex.getMessage());
+            Alert err = new Alert(Alert.AlertType.ERROR);
+            err.initOwner(stage);
+            err.setTitle("PDF export");
+            err.setHeaderText("Could not export PDF");
+            err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            err.showAndWait();
+        }
     }
 
     public void showComponentLibrary() {
