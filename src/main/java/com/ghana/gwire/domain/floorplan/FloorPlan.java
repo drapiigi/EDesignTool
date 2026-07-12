@@ -127,6 +127,11 @@ public final class FloorPlan {
         devices.clear();
     }
 
+    /** Removes all placed devices; rooms, walls, and openings are kept. */
+    public void clearDevices() {
+        devices.clear();
+    }
+
     public void clearAll() {
         clearGeometry();
         background = null;

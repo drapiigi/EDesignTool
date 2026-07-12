@@ -55,7 +55,7 @@
 | 2 | Floor plan module (draw + image/PDF import) | **Done** |
 | 3 | Electrical symbol library + starter component DB | **Done** |
 | 4 | Calculation & standards engine | **Done** |
-| 5 | AI generation integration | Planned |
+| 5 | AI generation integration | **Done** (rules + optional LLM + co-pilot) |
 | 6 | Real-time updates, BOQ, validation | Planned |
 | 7 | PDF export & reporting | Planned |
 | 8 | Packaging, polish, sample 3-bed house, docs | Planned |
@@ -153,9 +153,17 @@
 - `CalcEngine` → `DesignReport` stored on `Project.lastReport`
 - UI: Tools → Recalculate Loads / Validate Standards; calc results panel; BOQ cable lengths
 
+### Done (Phase 5)
+
+- Package `com.ghana.gwire.ai`: `AiSettings`, `DesignPlacement`, `AiDesignPlan`, `RuleBasedDesignGenerator`, `OpenAiCompatClient`, `LlmDesignGenerator`, `AiDesignService`, `AiCopilotResult`
+- Rule-based Ghana residential heuristics (offline); optional OpenAI-compatible LLM; fallback to rules
+- Apply plan → `PlacedDevice`s; simple co-pilot commands
+- UI: Design → AI Generate Design / rules only; Tools → AI Co-pilot Chat
+- Config: env (`GWIRE_AI_*`, `OPENAI_API_KEY`, `XAI_API_KEY`) and `~/.gwire/ai.properties` (never commit keys)
+
 ### Open tasks
 
-- [ ] Phase 5: AI generate design (vision + LLM + rule fallback)
+- [ ] Phase 5 follow-up: vision floor-plan understanding (optional)
 - [ ] Phase 6: project save/load, richer live model updates
 - [ ] Phase 7: PDF exports (plans, SLD, schedules, BOQ, checklist)
 - [ ] Phase 8: jpackage installers, sample project, full docs
@@ -169,6 +177,7 @@ src/main/java/com/ghana/gwire/
   Main.java, GWireApp.java
   domain/geometry/, domain/floorplan/, domain/project/, domain/components/, domain/calc/
   db/ (H2 library, seed, repository)
+  ai/ (Phase 5 design generation)
   service/importing/, service/history/, service/calc/
   ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/, ui/symbols/
 src/main/resources/css/

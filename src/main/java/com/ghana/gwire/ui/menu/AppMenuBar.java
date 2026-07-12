@@ -63,7 +63,8 @@ public class AppMenuBar {
 
         Menu design = new Menu("_Design");
         design.getItems().addAll(
-                disabled("_AI Generate Design…"),
+                item("_AI Generate Design…", KeyCode.G, true, window::aiGenerateDesign),
+                item("AI Generate (rules _only)…", null, false, window::aiGenerateDesignRulesOnly),
                 new SeparatorMenuItem(),
                 item("Tool: _Select", null, false, () -> window.setTool(DrawTool.SELECT)),
                 item("Tool: _Wall", null, false, () -> window.setTool(DrawTool.WALL)),
@@ -82,7 +83,7 @@ public class AppMenuBar {
                 new SeparatorMenuItem(),
                 item("Component _Library", null, false, window::showComponentLibrary),
                 new SeparatorMenuItem(),
-                disabled("AI _Co-pilot Chat…")
+                item("AI _Co-pilot Chat…", null, false, window::aiCopilotChat)
         );
 
         Menu help = new Menu("_Help");

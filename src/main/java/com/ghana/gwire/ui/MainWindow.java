@@ -1,6 +1,9 @@
 package com.ghana.gwire.ui;
 
 import com.ghana.gwire.GWireApp;
+import com.ghana.gwire.ai.AiDesignPlan;
+import com.ghana.gwire.ai.AiDesignService;
+import com.ghana.gwire.ai.AiSettings;
 import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
@@ -16,6 +19,7 @@ import com.ghana.gwire.ui.panels.SymbolLibraryPanel;
 import com.ghana.gwire.ui.theme.ThemeManager;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.BorderPane;
@@ -107,7 +111,7 @@ public class MainWindow {
             // library optional at UI build time
         }
         statusBar.setMessage(
-                "Phase 4: place devices, then Tools → Recalculate Loads / Validate Standards ("
+                "Phase 5: Design → AI Generate Design · Tools → Recalculate ("
                         + count + " catalogue items)."
         );
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
@@ -263,6 +267,133 @@ public class MainWindow {
         alert.showAndWait();
     }
 
+    /**
+     * Phase 5: generate placements (LLM if configured, else rules) and apply to the floor plan.
+     */
+    public void aiGenerateDesign() {
+        runAiGenerate(false);
+    }
+
+    /** Force offline rule-based placement (no LLM call). */
+    public void aiGenerateDesignRulesOnly() {
+        runAiGenerate(true);
+    }
+
+    private void runAiGenerate(boolean rulesOnly) {
+        if (project == null) {
+            statusBar.setMessage("No project for AI design.");
+            return;
+        }
+        if (project.floorPlan().rooms().isEmpty()) {
+            Alert warn = new Alert(Alert.AlertType.WARNING);
+            warn.initOwner(stage);
+            warn.setTitle("AI Generate Design");
+            warn.setHeaderText("No rooms on the floor plan");
+            warn.setContentText("Draw rooms first (Room tool), then run AI Generate Design.");
+            warn.showAndWait();
+            return;
+        }
+
+        boolean clear = true;
+        if (!project.floorPlan().devices().isEmpty()) {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.initOwner(stage);
+            confirm.setTitle("AI Generate Design");
+            confirm.setHeaderText("Replace existing devices?");
+            confirm.setContentText(
+                    "Yes = clear current devices and apply the new plan.\n"
+                            + "No = append placements.\n"
+                            + "Cancel = abort."
+            );
+            confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+            var choice = confirm.showAndWait();
+            if (choice.isEmpty() || choice.get() == ButtonType.CANCEL) {
+                return;
+            }
+            clear = choice.get() == ButtonType.YES;
+        }
+
+        try {
+            statusBar.setMessage(rulesOnly
+                    ? "Generating design with offline rules…"
+                    : "Generating design (LLM if configured, else rules)…");
+            AiDesignService ai = new AiDesignService(AiSettings.load());
+            AiDesignPlan plan = rulesOnly
+                    ? ai.generateRulesOnly(project, LibraryBootstrap.get())
+                    : ai.generate(project, LibraryBootstrap.get());
+            // Snapshot for undo
+            workspace.getHistory().push(project.floorPlan());
+            int n = ai.apply(project, plan, clear);
+            workspace.getCanvas().redraw();
+            boqPanel.refresh();
+            if (project.lastReport() != null) {
+                // stale after layout change — clear so user re-runs calc
+                project.setLastReport(null);
+                calcResultsPanel.clear();
+            }
+            refreshTitleAndStatus();
+            statusBar.setMessage(String.format(
+                    "AI design applied: %d device(s) · source=%s · %s · Ctrl+Z to undo",
+                    n, plan.source(), plan.providerDetail()
+            ));
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.initOwner(stage);
+            info.setTitle("AI Generate Design");
+            info.setHeaderText(String.format("%d placements · %s", n, plan.source()));
+            String body = plan.notes()
+                    + "\n\nTip: Tools → Recalculate Loads to size cables and validate L.I. 2008 checks.";
+            if (body.length() > 1400) {
+                body = body.substring(0, 1400) + "\n…";
+            }
+            info.setContentText(body);
+            info.showAndWait();
+        } catch (Exception ex) {
+            log.error("AI design failed", ex);
+            statusBar.setMessage("AI design failed: " + ex.getMessage());
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.initOwner(stage);
+            alert.setTitle("AI design failed");
+            alert.setHeaderText("Could not generate design");
+            alert.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    /**
+     * Minimal co-pilot prompt (rule-based commands; optional LLM free-text when configured).
+     */
+    public void aiCopilotChat() {
+        if (project == null) {
+            statusBar.setMessage("No project for co-pilot.");
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.initOwner(stage);
+        dialog.setTitle("AI Co-pilot");
+        dialog.setHeaderText("GhanaWire co-pilot (examples: add socket in Living, recalculate)");
+        dialog.setContentText("Command:");
+        dialog.showAndWait().ifPresent(msg -> {
+            try {
+                workspace.getHistory().push(project.floorPlan());
+                AiDesignService ai = new AiDesignService(AiSettings.load());
+                String reply = ai.coPilot(project, LibraryBootstrap.get(), msg);
+                workspace.getCanvas().redraw();
+                boqPanel.refresh();
+                refreshTitleAndStatus();
+                statusBar.setMessage("Co-pilot: " + (reply.length() > 80 ? reply.substring(0, 80) + "…" : reply));
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+                info.initOwner(stage);
+                info.setTitle("AI Co-pilot");
+                info.setHeaderText("Reply");
+                info.setContentText(reply);
+                info.showAndWait();
+            } catch (Exception ex) {
+                log.warn("Co-pilot failed: {}", ex.getMessage());
+                statusBar.setMessage("Co-pilot failed: " + ex.getMessage());
+            }
+        });
+    }
+
     public void setTool(DrawTool tool) {
         workspace.setTool(tool);
     }
@@ -313,9 +444,13 @@ public class MainWindow {
 
                 Stack: Java 21+, JavaFX 23+, Maven, H2, PDFBox
 
-                Phase 4: Load calc, diversity, cable sizing, Vd, standards checks.
-                Catalogue: %d items.
-                """.formatted(GWireApp.APP_VERSION, n)
+                Phase 5: AI design (rules + optional LLM), loads, standards checks.
+                Catalogue: %d items. AI: %s
+                """.formatted(
+                        GWireApp.APP_VERSION,
+                        n,
+                        AiSettings.load().isLlmAvailable() ? "LLM ready" : "rules only (no API key)"
+                )
         );
         about.showAndWait();
     }
