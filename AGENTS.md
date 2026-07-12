@@ -175,6 +175,7 @@
 - `PdfExportService` (PDFBox): multi-page report — cover, floor plan drawing, circuit schedule, BOQ, compliance checklist
 - File → Export PDF Report (Ctrl+E); runs calc if needed
 - Unit test loads generated PDF and checks page count
+- `BoqExcelExportService` (Apache POI): BOQ-only `.xlsx` export — File → Export BOQ (Excel)
 
 ### Open tasks
 

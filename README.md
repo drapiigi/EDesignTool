@@ -82,6 +82,7 @@ Prefer `mvn javafx:run` during development. Installers via **jpackage** land in 
 | Co-pilot | **Tools → AI Co-pilot Chat** (e.g. `add socket in Living`) |
 | Save / Open | **File → Save** (Ctrl+S) · **Open** (Ctrl+O) · **Save As** |
 | **Export PDF** | **File → Export PDF Report** (Ctrl+E) |
+| **Export BOQ Excel** | **File → Export BOQ (Excel)…** |
 | Recalculate | **Tools → Recalculate Loads** (Ctrl+R) |
 | Validate | **Tools → Validate Standards** (Ctrl+L) |
 

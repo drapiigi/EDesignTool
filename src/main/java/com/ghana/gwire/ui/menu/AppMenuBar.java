@@ -27,12 +27,14 @@ public class AppMenuBar {
         MenuItem saveAsItem = item("Save _As…", null, false, window::saveProjectAs);
         MenuItem importItem = item("_Import Floor Plan…", KeyCode.I, true, window::importFloorPlan);
         MenuItem exportPdf = item("_Export PDF Report…", KeyCode.E, true, window::exportPdfReport);
+        MenuItem exportBoqExcel = item("Export _BOQ (Excel)…", null, false, window::exportBoqExcel);
         MenuItem exitItem = item("E_xit", KeyCode.Q, true, window::quit);
         file.getItems().addAll(
                 newItem, openItem, saveItem, saveAsItem,
                 new SeparatorMenuItem(),
                 importItem,
                 exportPdf,
+                exportBoqExcel,
                 new SeparatorMenuItem(),
                 exitItem
         );

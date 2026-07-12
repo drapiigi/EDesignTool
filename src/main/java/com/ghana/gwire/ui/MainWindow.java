@@ -9,6 +9,7 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
+import com.ghana.gwire.service.export.BoqExcelExportService;
 import com.ghana.gwire.service.export.PdfExportService;
 import com.ghana.gwire.service.persist.ProjectStore;
 import com.ghana.gwire.ui.canvas.DrawTool;
@@ -56,6 +57,7 @@ public class MainWindow {
     private final CalcEngine calcEngine = new CalcEngine();
     private final ProjectStore projectStore = new ProjectStore();
     private final PdfExportService pdfExportService = new PdfExportService();
+    private final BoqExcelExportService boqExcelExportService = new BoqExcelExportService();
 
     private Project project;
     private Path projectPath;
@@ -323,6 +325,74 @@ public class MainWindow {
 
     public void importFloorPlan() {
         workspace.importFloorPlan();
+    }
+
+    /**
+     * Export Bill of Quantities only as an Excel workbook (.xlsx).
+     */
+    public void exportBoqExcel() {
+        if (project == null) {
+            statusBar.setMessage("No project to export.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export BOQ as Excel");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Excel workbook (*.xlsx)", "*.xlsx")
+        );
+        chooser.setInitialFileName(sanitizeFileName(project.name()) + "-boq.xlsx");
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
+            return;
+        }
+        Path path = file.toPath();
+        if (!path.getFileName().toString().toLowerCase().endsWith(".xlsx")) {
+            path = path.resolveSibling(path.getFileName().toString() + ".xlsx");
+        }
+
+        boolean includeCables = true;
+        if (project.lastReport() == null) {
+            Alert ask = new Alert(Alert.AlertType.CONFIRMATION);
+            ask.initOwner(stage);
+            ask.setTitle("Export BOQ (Excel)");
+            ask.setHeaderText("Include estimated circuit cables?");
+            ask.setContentText(
+                    "Yes = run load calculation first and add cable length estimates.\n"
+                            + "No = export placed devices only."
+            );
+            ask.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+            var choice = ask.showAndWait();
+            if (choice.isEmpty() || choice.get() == ButtonType.CANCEL) {
+                return;
+            }
+            includeCables = choice.get() == ButtonType.YES;
+        }
+
+        try {
+            statusBar.setMessage("Exporting BOQ Excel…");
+            boqExcelExportService.export(project, path, includeCables);
+            if (project.lastReport() != null) {
+                calcResultsPanel.showReport(project.lastReport());
+            }
+            boqPanel.refresh();
+            refreshTitleAndStatus();
+            statusBar.setMessage("Exported BOQ Excel: " + path.getFileName());
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.initOwner(stage);
+            info.setTitle("BOQ Excel export");
+            info.setHeaderText("Workbook saved");
+            info.setContentText(path.toAbsolutePath().toString());
+            info.showAndWait();
+        } catch (Exception ex) {
+            log.error("BOQ Excel export failed", ex);
+            statusBar.setMessage("BOQ Excel export failed: " + ex.getMessage());
+            Alert err = new Alert(Alert.AlertType.ERROR);
+            err.initOwner(stage);
+            err.setTitle("BOQ Excel export");
+            err.setHeaderText("Could not export Excel");
+            err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            err.showAndWait();
+        }
     }
 
     /**
