@@ -13,6 +13,9 @@ import com.ghana.gwire.samples.SampleProjectFactory;
 import com.ghana.gwire.service.export.BoqExcelExportService;
 import com.ghana.gwire.service.export.PdfExportService;
 import com.ghana.gwire.service.persist.ProjectStore;
+import com.ghana.gwire.service.sld.SingleLineDiagram;
+import com.ghana.gwire.service.sld.SingleLineDiagramBuilder;
+import com.ghana.gwire.service.wiring.WiringRouteService;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
 import com.ghana.gwire.ui.menu.AppMenuBar;
@@ -62,6 +65,8 @@ public class MainWindow {
     private final ProjectStore projectStore = new ProjectStore();
     private final PdfExportService pdfExportService = new PdfExportService();
     private final BoqExcelExportService boqExcelExportService = new BoqExcelExportService();
+    private final WiringRouteService wiringRouteService = new WiringRouteService();
+    private final SingleLineDiagramBuilder sldBuilder = new SingleLineDiagramBuilder();
 
     private Project project;
     private Path projectPath;
@@ -82,6 +87,11 @@ public class MainWindow {
         workspace.setStatusSink(statusBar::setMessage);
         workspace.setSelectionListener(this::refreshSelection);
         workspace.setModelChangeListener(this::onModelChanged);
+        workspace.setStoreyChangeListener(() -> {
+            refreshSelection();
+            markDirty();
+            refreshTitleAndStatus();
+        });
 
         propertiesPanel.setOnProjectChanged(() -> {
             markDirty();
@@ -460,6 +470,75 @@ public class MainWindow {
         statusBar.setMessage("Component library reloaded ("
                 + (LibraryBootstrap.get() == null ? 0 : LibraryBootstrap.get().count())
                 + " items)");
+    }
+
+    public void setShowWiringRoutes(boolean show) {
+        if (project != null) {
+            project.floorPlan().setShowWiringRoutes(show);
+            workspace.getCanvas().redraw();
+        }
+    }
+
+    public void generateWiringRoutes() {
+        if (project == null) {
+            statusBar.setMessage("No project.");
+            return;
+        }
+        try {
+            workspace.getHistory().push(project.floorPlan());
+            int n = wiringRouteService.generateForActiveStorey(project);
+            project.floorPlan().setShowWiringRoutes(true);
+            workspace.getCanvas().redraw();
+            onModelChanged();
+            if (project.lastReport() != null) {
+                calcResultsPanel.showReport(project.lastReport());
+            }
+            statusBar.setMessage("Generated " + n + " wiring route(s) on "
+                    + project.activeStorey().displayLabel());
+        } catch (Exception ex) {
+            log.error("Wiring generation failed", ex);
+            statusBar.setMessage("Wiring generation failed: " + ex.getMessage());
+        }
+    }
+
+    public void showSingleLineDiagram() {
+        if (project == null) {
+            statusBar.setMessage("No project.");
+            return;
+        }
+        try {
+            SingleLineDiagram sld = sldBuilder.build(project);
+            if (project.lastReport() != null) {
+                calcResultsPanel.showReport(project.lastReport());
+            }
+            StringBuilder body = new StringBuilder();
+            body.append(sld.title()).append("\n\n");
+            appendSld(body, sld.root(), 0);
+            body.append("\n").append(sld.notes());
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.initOwner(stage);
+            info.setTitle("Single-line diagram");
+            info.setHeaderText("Schematic SLD (also included in PDF export)");
+            info.setContentText(body.length() > 3500 ? body.substring(0, 3500) + "\n..." : body.toString());
+            info.getDialogPane().setPrefWidth(520);
+            info.showAndWait();
+            statusBar.setMessage("SLD preview shown · export PDF for printable page");
+        } catch (Exception ex) {
+            log.error("SLD failed", ex);
+            statusBar.setMessage("SLD failed: " + ex.getMessage());
+        }
+    }
+
+    private static void appendSld(StringBuilder sb, SingleLineDiagram.Node node, int depth) {
+        sb.append("  ".repeat(depth)).append("+ ").append(node.kind()).append(": ")
+                .append(node.label());
+        if (!node.detail().isBlank()) {
+            sb.append(" — ").append(node.detail());
+        }
+        sb.append('\n');
+        for (SingleLineDiagram.Node c : node.children()) {
+            appendSld(sb, c, depth + 1);
+        }
     }
 
     /**
@@ -976,9 +1055,11 @@ public class MainWindow {
         String pathHint = projectPath == null ? "" : " — " + projectPath.getFileName();
         stage.setTitle(GWireApp.APP_NAME + " — " + project.name() + pathHint + dirtyMark);
         String secondary = "L.I. 2008 · " + project.supplySummary()
-                + " · walls " + project.floorPlan().walls().size()
-                + " · rooms " + project.floorPlan().rooms().size()
-                + " · devices " + project.floorPlan().devices().size();
+                + " · " + project.activeStorey().displayLabel()
+                + " · storeys " + project.storeys().size()
+                + " · rooms " + project.totalRoomCount()
+                + " · devices " + project.totalDeviceCount()
+                + " · routes " + project.floorPlan().wiringRoutes().size();
         DesignReport report = project.lastReport();
         if (report != null) {
             secondary += String.format(

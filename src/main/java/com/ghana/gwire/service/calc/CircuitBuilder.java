@@ -8,6 +8,7 @@ import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 import com.ghana.gwire.domain.floorplan.Room;
 import com.ghana.gwire.domain.geometry.Vec2;
+import com.ghana.gwire.domain.project.BuildingStorey;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.domain.project.ProjectSettings;
 
@@ -36,13 +37,22 @@ public final class CircuitBuilder {
     public static List<CircuitLoad> build(Project project, Map<String, ElectricalComponent> catalogue) {
         Objects.requireNonNull(project, "project");
         Map<String, ElectricalComponent> cat = catalogue == null ? Map.of() : catalogue;
+        // Active plan used for length estimator geometry; devices come from all storeys
         FloorPlan plan = project.floorPlan();
         double voltageV = project.settings().nominalVoltageV();
         if (voltageV <= 0) {
             voltageV = 230;
         }
 
-        List<PlacedDevice> devices = plan.devices();
+        List<PlacedDevice> devices = new ArrayList<>();
+        Map<String, Room> roomsById = new LinkedHashMap<>();
+        for (BuildingStorey storey : project.storeys()) {
+            FloorPlan fp = storey.floorPlan();
+            devices.addAll(fp.devices());
+            for (Room r : fp.rooms()) {
+                roomsById.put(r.id(), r);
+            }
+        }
         List<Vec2> dbPositions = CableLengthEstimator.findDistributionBoardPositions(devices, cat);
 
         // Track devices already assigned to special circuits
@@ -57,7 +67,7 @@ public final class CircuitBuilder {
             if (special == null) {
                 continue;
             }
-            String roomName = roomName(plan, d.roomId());
+            String roomName = roomName(roomsById, d.roomId());
             String label = specialLabel(special, roomName, c, d);
             CircuitLoad cl = new CircuitLoad(label, special);
             cl.setRoomId(d.roomId());
@@ -104,7 +114,7 @@ public final class CircuitBuilder {
 
         for (Map.Entry<String, List<PlacedDevice>> e : lightingByRoom.entrySet()) {
             String roomId = e.getKey().isEmpty() ? null : e.getKey();
-            String roomName = roomName(plan, roomId);
+            String roomName = roomName(roomsById, roomId);
             CircuitLoad cl = new CircuitLoad("Lighting – " + roomName, CircuitKind.LIGHTING);
             cl.setRoomId(roomId);
             double power = 0;
@@ -142,7 +152,7 @@ public final class CircuitBuilder {
 
         for (Map.Entry<String, List<PlacedDevice>> e : socketsByRoom.entrySet()) {
             String roomId = e.getKey().isEmpty() ? null : e.getKey();
-            String roomName = roomName(plan, roomId);
+            String roomName = roomName(roomsById, roomId);
             CircuitLoad cl = new CircuitLoad("Sockets – " + roomName, CircuitKind.SOCKET);
             cl.setRoomId(roomId);
             double power = 0;
@@ -283,11 +293,12 @@ public final class CircuitBuilder {
         return base;
     }
 
-    private static String roomName(FloorPlan plan, String roomId) {
+    private static String roomName(Map<String, Room> roomsById, String roomId) {
         if (roomId == null || roomId.isBlank()) {
             return "Unassigned";
         }
-        return plan.findRoom(roomId).map(Room::name).orElse("Unassigned");
+        Room r = roomsById.get(roomId);
+        return r == null ? "Unassigned" : r.name();
     }
 
     private static ComponentCategory resolveCategory(ElectricalComponent c, PlacedDevice d) {

@@ -19,9 +19,11 @@ public final class FloorPlan {
     private final List<Room> rooms = new ArrayList<>();
     private final List<Opening> openings = new ArrayList<>();
     private final List<PlacedDevice> devices = new ArrayList<>();
+    private final List<WiringRoute> wiringRoutes = new ArrayList<>();
     private BackgroundImage background;
     private double gridMm = 500;
     private boolean snapToGrid = true;
+    private boolean showWiringRoutes = true;
 
     public List<Wall> walls() {
         return Collections.unmodifiableList(walls);
@@ -37,6 +39,18 @@ public final class FloorPlan {
 
     public List<PlacedDevice> devices() {
         return Collections.unmodifiableList(devices);
+    }
+
+    public List<WiringRoute> wiringRoutes() {
+        return Collections.unmodifiableList(wiringRoutes);
+    }
+
+    public boolean isShowWiringRoutes() {
+        return showWiringRoutes;
+    }
+
+    public void setShowWiringRoutes(boolean showWiringRoutes) {
+        this.showWiringRoutes = showWiringRoutes;
     }
 
     public BackgroundImage background() {
@@ -87,6 +101,25 @@ public final class FloorPlan {
         devices.add(device);
     }
 
+    public void addWiringRoute(WiringRoute route) {
+        if (route != null) {
+            wiringRoutes.add(route);
+        }
+    }
+
+    public void clearWiringRoutes() {
+        wiringRoutes.clear();
+    }
+
+    public void setWiringRoutes(List<WiringRoute> routes) {
+        wiringRoutes.clear();
+        if (routes != null) {
+            for (WiringRoute r : routes) {
+                wiringRoutes.add(r.copy());
+            }
+        }
+    }
+
     public boolean removeWallById(String id) {
         openings.removeIf(o -> o.wallId().equals(id));
         return walls.removeIf(w -> w.id().equals(id));
@@ -125,11 +158,13 @@ public final class FloorPlan {
         rooms.clear();
         openings.clear();
         devices.clear();
+        wiringRoutes.clear();
     }
 
     /** Removes all placed devices; rooms, walls, and openings are kept. */
     public void clearDevices() {
         devices.clear();
+        wiringRoutes.clear();
     }
 
     /** Clears rooms, walls, and openings; keeps devices and background. */
@@ -210,6 +245,7 @@ public final class FloorPlan {
         FloorPlan copy = new FloorPlan();
         copy.gridMm = gridMm;
         copy.snapToGrid = snapToGrid;
+        copy.showWiringRoutes = showWiringRoutes;
         for (Wall w : walls) {
             copy.walls.add(w.copy());
         }
@@ -222,6 +258,9 @@ public final class FloorPlan {
         for (PlacedDevice d : devices) {
             copy.devices.add(d.copy());
         }
+        for (WiringRoute wr : wiringRoutes) {
+            copy.wiringRoutes.add(wr.copy());
+        }
         if (background != null) {
             copy.background = background.copy();
         }
@@ -233,8 +272,10 @@ public final class FloorPlan {
         rooms.clear();
         openings.clear();
         devices.clear();
+        wiringRoutes.clear();
         gridMm = other.gridMm;
         snapToGrid = other.snapToGrid;
+        showWiringRoutes = other.showWiringRoutes;
         for (Wall w : other.walls) {
             walls.add(w.copy());
         }
@@ -246,6 +287,9 @@ public final class FloorPlan {
         }
         for (PlacedDevice d : other.devices) {
             devices.add(d.copy());
+        }
+        for (WiringRoute wr : other.wiringRoutes) {
+            wiringRoutes.add(wr.copy());
         }
         background = other.background == null ? null : other.background.copy();
     }

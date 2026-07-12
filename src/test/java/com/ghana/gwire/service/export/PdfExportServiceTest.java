@@ -36,7 +36,7 @@ class PdfExportServiceTest {
         assertTrue(Files.size(out) > 500);
 
         try (PDDocument doc = Loader.loadPDF(out.toFile())) {
-            assertTrue(doc.getNumberOfPages() >= 5, "expected multi-page report");
+            assertTrue(doc.getNumberOfPages() >= 6, "expected multi-page report including SLD");
         }
     }
 }

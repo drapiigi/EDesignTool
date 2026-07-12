@@ -4,12 +4,15 @@ import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Top-level design project. Phase 2 owns floor plan geometry; later phases
- * attach circuits, BOQ, and AI artefacts.
+ * Top-level design project with multi-storey support (Phase 9).
+ * {@link #floorPlan()} returns the <em>active</em> storey's plan for backward compatibility.
  */
 public final class Project {
 
@@ -18,7 +21,8 @@ public final class Project {
     private final Instant createdAt;
     private Instant modifiedAt;
     private final ProjectSettings settings;
-    private final FloorPlan floorPlan;
+    private final List<BuildingStorey> storeys = new ArrayList<>();
+    private int activeStoreyIndex;
     private DesignReport lastReport;
 
     public Project(String name) {
@@ -27,11 +31,13 @@ public final class Project {
         this.createdAt = Instant.now();
         this.modifiedAt = createdAt;
         this.settings = new ProjectSettings();
-        this.floorPlan = new FloorPlan();
+        this.storeys.add(new BuildingStorey("Ground floor", 0));
+        this.activeStoreyIndex = 0;
     }
 
     /**
      * Reconstruct a project from persistence (preserves id and timestamps).
+     * Starts with an empty ground floor; loaders replace storeys as needed.
      */
     public Project(String id, String name, Instant createdAt, Instant modifiedAt) {
         this.id = id == null || id.isBlank() ? UUID.randomUUID().toString() : id;
@@ -39,7 +45,8 @@ public final class Project {
         this.createdAt = createdAt == null ? Instant.now() : createdAt;
         this.modifiedAt = modifiedAt == null ? this.createdAt : modifiedAt;
         this.settings = new ProjectSettings();
-        this.floorPlan = new FloorPlan();
+        this.storeys.add(new BuildingStorey("Ground floor", 0));
+        this.activeStoreyIndex = 0;
     }
 
     public String id() {
@@ -71,8 +78,84 @@ public final class Project {
         return settings;
     }
 
+    /**
+     * Active storey's floor plan (used by existing UI/calc/export code).
+     */
     public FloorPlan floorPlan() {
-        return floorPlan;
+        return activeStorey().floorPlan();
+    }
+
+    public List<BuildingStorey> storeys() {
+        return Collections.unmodifiableList(storeys);
+    }
+
+    public int activeStoreyIndex() {
+        return activeStoreyIndex;
+    }
+
+    public BuildingStorey activeStorey() {
+        if (storeys.isEmpty()) {
+            storeys.add(new BuildingStorey("Ground floor", 0));
+            activeStoreyIndex = 0;
+        }
+        return storeys.get(Math.clamp(activeStoreyIndex, 0, storeys.size() - 1));
+    }
+
+    public void setActiveStoreyIndex(int index) {
+        if (storeys.isEmpty()) {
+            return;
+        }
+        activeStoreyIndex = Math.clamp(index, 0, storeys.size() - 1);
+        touch();
+    }
+
+    public BuildingStorey addStorey(String name, int level) {
+        BuildingStorey s = new BuildingStorey(name, level);
+        storeys.add(s);
+        touch();
+        return s;
+    }
+
+    public boolean removeStoreyAt(int index) {
+        if (storeys.size() <= 1 || index < 0 || index >= storeys.size()) {
+            return false;
+        }
+        storeys.remove(index);
+        if (activeStoreyIndex >= storeys.size()) {
+            activeStoreyIndex = storeys.size() - 1;
+        }
+        touch();
+        return true;
+    }
+
+    /** Replace storey list (used by persistence loader). */
+    public void replaceStoreys(List<BuildingStorey> next, int activeIndex) {
+        storeys.clear();
+        if (next == null || next.isEmpty()) {
+            storeys.add(new BuildingStorey("Ground floor", 0));
+            activeStoreyIndex = 0;
+        } else {
+            storeys.addAll(next);
+            activeStoreyIndex = Math.clamp(activeIndex, 0, storeys.size() - 1);
+        }
+        touch();
+    }
+
+    /** Total devices across all storeys. */
+    public int totalDeviceCount() {
+        int n = 0;
+        for (BuildingStorey s : storeys) {
+            n += s.floorPlan().devices().size();
+        }
+        return n;
+    }
+
+    public int totalRoomCount() {
+        int n = 0;
+        for (BuildingStorey s : storeys) {
+            n += s.floorPlan().rooms().size();
+        }
+        return n;
     }
 
     /** Most recent calculation report, if any (Phase 4). */

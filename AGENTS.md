@@ -59,6 +59,7 @@
 | 6 | Project save/load + live model updates | **Done** |
 | 7 | PDF export & reporting | **Done** |
 | 8 | Packaging, polish, sample 3-bed house, docs | **Done** |
+| 9 | Multi-storey, wiring routes, SLD, packaging polish | **Done** |
 
 ---
 
@@ -184,9 +185,17 @@
 - Packaging scripts: `scripts/package-linux.sh`, `scripts/package-windows.ps1`
 - Docs: `docs/PACKAGING.md`, README packaging section
 
+### Done (Phase 9)
+
+- Multi-storey: `BuildingStorey`, active floor switcher (`StoreyBar`), persist format 1.1
+- Wiring routes: `WiringRoute` + Manhattan auto-route from DB to loads; canvas overlay; View toggle
+- Single-line diagram: `SingleLineDiagramBuilder`, View preview, PDF SLD page
+- Packaging polish: `package-appimage.sh`, signing notes in PACKAGING.md
+- Calc/BOQ/standards aggregate devices across all storeys
+
 ### Open tasks
 
-- (Future) SLD CAD export, multi-storey, full wiring routes, installer code-signing
+- (Future) Conduit CAD detail, 3D BIM, cloud collab, signed store distribution
 
 ---
 

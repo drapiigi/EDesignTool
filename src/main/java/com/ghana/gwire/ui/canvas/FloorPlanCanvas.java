@@ -8,6 +8,7 @@ import com.ghana.gwire.domain.floorplan.Opening;
 import com.ghana.gwire.domain.floorplan.OpeningType;
 import com.ghana.gwire.domain.floorplan.Room;
 import com.ghana.gwire.domain.floorplan.Wall;
+import com.ghana.gwire.domain.floorplan.WiringRoute;
 import com.ghana.gwire.domain.geometry.Segment2;
 import com.ghana.gwire.domain.geometry.Vec2;
 import com.ghana.gwire.db.ComponentLibraryService;
@@ -33,6 +34,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -309,6 +311,7 @@ public class FloorPlanCanvas {
         drawRooms(g);
         drawWalls(g);
         drawOpenings(g);
+        drawWiringRoutes(g);
         drawDevices(g);
         drawPreview(g);
         if (dropHighlight) {
@@ -866,6 +869,32 @@ public class FloorPlanCanvas {
                     worldToScreenX(x) + 8, worldToScreenY(y) + 16);
         }
         g.setLineDashes(null);
+    }
+
+    private void drawWiringRoutes(GraphicsContext g) {
+        if (!floorPlan.isShowWiringRoutes() || floorPlan.wiringRoutes().isEmpty()) {
+            return;
+        }
+        g.setLineWidth(Math.max(1.2, 1.8 * scale * 20));
+        int i = 0;
+        for (WiringRoute route : floorPlan.wiringRoutes()) {
+            List<Vec2> pts = route.points();
+            if (pts.size() < 2) {
+                continue;
+            }
+            // Cycle soft colours per route
+            double hue = (i * 47) % 360;
+            g.setStroke(Color.hsb(hue, 0.55, 0.85, 0.75));
+            g.setLineDashes(6, 4);
+            g.beginPath();
+            g.moveTo(worldToScreenX(pts.get(0).x()), worldToScreenY(pts.get(0).y()));
+            for (int p = 1; p < pts.size(); p++) {
+                g.lineTo(worldToScreenX(pts.get(p).x()), worldToScreenY(pts.get(p).y()));
+            }
+            g.stroke();
+            g.setLineDashes(null);
+            i++;
+        }
     }
 
     private void drawDevices(GraphicsContext g) {

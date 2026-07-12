@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a design with AI, edit 
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI |
-| **Status** | Phase 8 complete — sample project + packaging scripts |
+| **Status** | Phase 9 complete — multi-storey, wiring routes, SLD |
 
 See **[AGENTS.md](AGENTS.md)** for architecture and agent workflow.  
 See **[docs/PACKAGING.md](docs/PACKAGING.md)** for installers and fat-jar notes.
@@ -58,7 +58,8 @@ Then: **Help → Open Sample 3-Bed House** to load a furnished Ghana bungalow de
 - **Save/Open** `.gwire` projects
 - **PDF report** (plan, schedule, BOQ, checklist)
 - **BOQ Excel** (`.xlsx`) export
-- **Sample 3-bed house** · packaging scripts (jpackage)
+- **Sample 3-bed house** · packaging scripts (jpackage / portable tarball)
+- **Multi-storey** buildings · **wiring routes** on canvas · **single-line diagram**
 
 ### Common actions
 
@@ -72,6 +73,9 @@ Then: **Help → Open Sample 3-Bed House** to load a furnished Ghana bungalow de
 | Vision rooms | Import plan → **Design → Analyze Floor Plan (Vision)** |
 | Recalculate | **Tools → Recalculate Loads** (Ctrl+R) |
 | Validate | **Tools → Validate Standards** (Ctrl+L) |
+| Wiring routes | **Tools → Generate Wiring Routes** · View → Show wiring routes |
+| SLD | **View → Single-Line Diagram…** (also in PDF) |
+| Storeys | Storey bar under drawing tools · **+ Floor** |
 
 ### Optional LLM / vision
 
@@ -113,6 +117,7 @@ Details: [docs/PACKAGING.md](docs/PACKAGING.md).
 6. **Phase 6** — Project save/load ✅  
 7. **Phase 7** — PDF + Excel BOQ export ✅  
 8. **Phase 8** — Packaging, sample 3-bed house, polish ✅  
+9. **Phase 9** — Multi-storey, wiring routes, SLD, packaging polish ✅  
 
 ---
 

@@ -58,12 +58,18 @@ public class AppMenuBar {
                     "Theme: " + window.getThemeManager().getTheme().label()
             );
         });
+        CheckMenuItem showWiring = new CheckMenuItem("Show _wiring routes");
+        showWiring.setSelected(true);
+        showWiring.setOnAction(e -> window.setShowWiringRoutes(showWiring.isSelected()));
         view.getItems().addAll(
                 darkMode,
+                showWiring,
                 new SeparatorMenuItem(),
                 item("Zoom _In", KeyCode.EQUALS, true, window::zoomIn),
                 item("Zoom _Out", KeyCode.MINUS, true, window::zoomOut),
-                item("_Fit to Window", KeyCode.DIGIT0, true, window::fitToWindow)
+                item("_Fit to Window", KeyCode.DIGIT0, true, window::fitToWindow),
+                new SeparatorMenuItem(),
+                item("Single-_Line Diagram…", null, false, window::showSingleLineDiagram)
         );
 
         Menu design = new Menu("_Design");
@@ -87,6 +93,7 @@ public class AppMenuBar {
         tools.getItems().addAll(
                 item("_Recalculate Loads", KeyCode.R, true, window::recalculateLoads),
                 item("_Validate Standards (L.I. 2008)", KeyCode.L, true, window::validateStandards),
+                item("Generate _Wiring Routes", null, false, window::generateWiringRoutes),
                 new SeparatorMenuItem(),
                 item("Component _Library", null, false, window::showComponentLibrary),
                 new SeparatorMenuItem(),

@@ -13,6 +13,8 @@ import com.ghana.gwire.domain.floorplan.Room;
 import com.ghana.gwire.domain.floorplan.Wall;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
+import com.ghana.gwire.service.sld.SingleLineDiagram;
+import com.ghana.gwire.service.sld.SingleLineDiagramBuilder;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -73,6 +75,7 @@ public final class PdfExportService {
         try (PDDocument doc = new PDDocument()) {
             writeCoverPage(doc, project, report);
             writeFloorPlanPage(doc, project);
+            writeSldPage(doc, project, report);
             writeCircuitSchedulePage(doc, project, report);
             writeBoqPage(doc, project, report);
             writeChecklistPage(doc, project, report);
@@ -95,10 +98,10 @@ public final class PdfExportService {
             y = line(cs, "Supply: " + project.supplySummary(), y - 4);
             y = line(cs, "House type: " + project.settings().houseType(), y - 4);
             y = line(cs, String.format(Locale.ROOT,
-                    "Geometry: %d room(s), %d wall(s), %d device(s)",
-                    project.floorPlan().rooms().size(),
-                    project.floorPlan().walls().size(),
-                    project.floorPlan().devices().size()), y - 4);
+                    "Storeys: %d · rooms: %d · devices: %d (all floors)",
+                    project.storeys().size(),
+                    project.totalRoomCount(),
+                    project.totalDeviceCount()), y - 4);
             y -= 16;
             y = section(cs, "Design summary (after diversity)", y);
             y = line(cs, String.format(Locale.ROOT, "Connected load: %.0f W", report.totalConnectedLoadW()), y - 6);
@@ -111,10 +114,11 @@ public final class PdfExportService {
             y -= 20;
             y = section(cs, "Contents", y);
             y = line(cs, "1. Cover & summary", y - 6);
-            y = line(cs, "2. Floor plan layout", y - 4);
-            y = line(cs, "3. Circuit schedule", y - 4);
-            y = line(cs, "4. Bill of quantities", y - 4);
-            y = line(cs, "5. Compliance checklist (L.I. 2008 practice)", y - 4);
+            y = line(cs, "2. Floor plan layout (active storey)", y - 4);
+            y = line(cs, "3. Single-line diagram", y - 4);
+            y = line(cs, "4. Circuit schedule", y - 4);
+            y = line(cs, "5. Bill of quantities", y - 4);
+            y = line(cs, "6. Compliance checklist (L.I. 2008 practice)", y - 4);
             footer(cs, page, "Preliminary design — verify with a CEWP before installation.");
         }
     }
@@ -197,6 +201,41 @@ public final class PdfExportService {
         }
     }
 
+    private void writeSldPage(PDDocument doc, Project project, DesignReport report) throws IOException {
+        SingleLineDiagram sld = new SingleLineDiagramBuilder().build(project, report);
+        PDPage page = new PDPage(PDRectangle.A4);
+        doc.addPage(page);
+        try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+            float y = page.getMediaBox().getHeight() - MARGIN;
+            y = title(cs, "Single-line diagram", y);
+            y = line(cs, sld.title(), y - 4);
+            y = line(cs, "Schematic only — not a certified SLD", y - 4);
+            y -= 12;
+            y = drawSldNode(cs, sld.root(), MARGIN, y, 0);
+            y -= 10;
+            y = wrapped(cs, sld.notes(), y, 9);
+            footer(cs, page, "GhanaWire AI · single-line diagram");
+        }
+    }
+
+    private float drawSldNode(PDPageContentStream cs, SingleLineDiagram.Node node, float x, float y, int depth)
+            throws IOException {
+        if (y < MARGIN + 40) {
+            return y;
+        }
+        String indent = "  ".repeat(Math.min(depth, 8));
+        String kind = node.kind().name();
+        y = textAt(cs, fontBold, 10, x, y, indent + "+ " + kind + ": " + safe(node.label())) - 2;
+        if (!node.detail().isBlank()) {
+            y = textAt(cs, fontRegular, 8, x + 12, y - 2, indent + "  " + safe(node.detail())) - 2;
+        }
+        y -= 4;
+        for (SingleLineDiagram.Node child : node.children()) {
+            y = drawSldNode(cs, child, x, y, depth + 1);
+        }
+        return y;
+    }
+
     private void writeCircuitSchedulePage(PDDocument doc, Project project, DesignReport report)
             throws IOException {
         PDPage page = new PDPage(PDRectangle.A4);
@@ -254,8 +293,10 @@ public final class PdfExportService {
             ComponentLibraryService lib = safeLib();
             List<String[]> rows = new ArrayList<>();
             Map<String, Integer> counts = new LinkedHashMap<>();
-            for (PlacedDevice d : project.floorPlan().devices()) {
-                counts.merge(d.componentId(), 1, Integer::sum);
+            for (var storey : project.storeys()) {
+                for (PlacedDevice d : storey.floorPlan().devices()) {
+                    counts.merge(d.componentId(), 1, Integer::sum);
+                }
             }
             double grand = 0;
             for (Map.Entry<String, Integer> e : counts.entrySet()) {

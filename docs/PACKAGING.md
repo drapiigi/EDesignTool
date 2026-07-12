@@ -60,8 +60,29 @@ mvn -q -DskipTests compile
 # use ProjectStore + SampleProjectFactory (see scripts or unit tests)
 ```
 
+## Portable tarball / AppImage (Linux)
+
+```bash
+./scripts/package-appimage.sh
+# Always produces: target/dist/linux/GhanaWireAI-linux-x64.tar.gz
+# If appimagetool is installed: optional .AppImage (unsigned)
+```
+
+## Code signing (optional)
+
+Signing requires **your** certificates — the repo does not include secrets.
+
+| Platform | Tooling |
+|----------|---------|
+| Windows MSI/EXE | `signtool` / Azure Trusted Signing after `jpackage --type msi` |
+| macOS | `jpackage --mac-sign` with Developer ID |
+| Linux .deb | `debsigs` / package maintainer keys |
+
+Unsigned app-images and tarballs are fine for internal demos.
+
 ## Notes
 
 - Component library is created at first run under `~/.gwire/library`
 - AI keys: `~/.gwire/ai.properties` or `GWIRE_AI_API_KEY` (never commit)
 - PDF/Excel export requires a writable destination folder
+- Multi-storey projects use `.gwire` format **1.1** (1.0 files still open)

@@ -57,8 +57,10 @@ public final class StandardsValidator {
         List<ValidationIssue> issues = new ArrayList<>();
         List<CircuitLoad> circs = circuits == null ? List.of() : circuits;
         Map<String, ElectricalComponent> cat = catalogue == null ? Map.of() : catalogue;
-        FloorPlan plan = project.floorPlan();
-        List<PlacedDevice> devices = plan.devices();
+        List<PlacedDevice> devices = new ArrayList<>();
+        for (var storey : project.storeys()) {
+            devices.addAll(storey.floorPlan().devices());
+        }
 
         validateMainIncomer(totalDesignCurrentA, issues);
         validateCircuits(circs, issues);

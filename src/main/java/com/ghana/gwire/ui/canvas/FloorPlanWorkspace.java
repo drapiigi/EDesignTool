@@ -26,6 +26,7 @@ public class FloorPlanWorkspace {
 
     private final VBox root;
     private final DrawingToolbar toolbar;
+    private final StoreyBar storeyBar;
     private final FloorPlanCanvas canvas;
     private final FloorPlanHistory history;
     private final FloorPlanImportService importService = new FloorPlanImportService();
@@ -37,6 +38,8 @@ public class FloorPlanWorkspace {
     };
     private Runnable modelChangeListener = () -> {
     };
+    private Runnable storeyChangeListener = () -> {
+    };
     private Window ownerWindow;
 
     public FloorPlanWorkspace() {
@@ -45,6 +48,7 @@ public class FloorPlanWorkspace {
         });
         canvas = new FloorPlanCanvas(history);
         toolbar = new DrawingToolbar();
+        storeyBar = new StoreyBar();
 
         toolbar.setToolListener(canvas::setTool);
         canvas.toolProperty().addListener((o, a, b) -> toolbar.selectTool(b));
@@ -52,11 +56,17 @@ public class FloorPlanWorkspace {
         toolbar.setClearBgAction(this::clearBackground);
         toolbar.setFitAction(canvas::fitToWindow);
 
+        storeyBar.setOnStoreyChanged(this::switchStorey);
+        storeyBar.setOnStructureChanged(() -> {
+            modelChangeListener.run();
+            storeyChangeListener.run();
+        });
+
         canvas.setStatusSink(msg -> statusSink.accept(msg));
         canvas.setSelectionListener(() -> selectionListener.run());
 
         VBox.setVgrow(canvas.getRoot(), Priority.ALWAYS);
-        root = new VBox(toolbar.getRoot(), canvas.getRoot());
+        root = new VBox(toolbar.getRoot(), storeyBar.getRoot(), canvas.getRoot());
         root.getStyleClass().add("floor-plan-workspace");
         VBox.setVgrow(root, Priority.ALWAYS);
     }
@@ -106,8 +116,14 @@ public class FloorPlanWorkspace {
         } : modelChangeListener;
     }
 
+    public void setStoreyChangeListener(Runnable storeyChangeListener) {
+        this.storeyChangeListener = storeyChangeListener == null ? () -> {
+        } : storeyChangeListener;
+    }
+
     public void bindProject(Project project) {
         this.project = project;
+        storeyBar.bindProject(project);
         if (project == null) {
             canvas.setFloorPlan(new FloorPlan());
             canvas.clearRasterCache();
@@ -116,6 +132,23 @@ public class FloorPlanWorkspace {
             reloadBackgroundRaster();
         }
         statusSink.accept("Project: " + (project == null ? "(none)" : project.name()));
+    }
+
+    private void switchStorey(int index) {
+        if (project == null) {
+            return;
+        }
+        project.setActiveStoreyIndex(index);
+        canvas.setFloorPlan(project.floorPlan());
+        reloadBackgroundRaster();
+        canvas.fitToWindow();
+        storeyBar.refresh();
+        storeyChangeListener.run();
+        statusSink.accept("Active storey: " + project.activeStorey().displayLabel());
+    }
+
+    public void refreshStoreyBar() {
+        storeyBar.refresh();
     }
 
     /**

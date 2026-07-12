@@ -13,8 +13,13 @@ import com.ghana.gwire.domain.floorplan.OpeningType;
 import com.ghana.gwire.domain.floorplan.Room;
 import com.ghana.gwire.domain.floorplan.Wall;
 import com.ghana.gwire.domain.geometry.Vec2;
+import com.ghana.gwire.domain.floorplan.WiringRoute;
+import com.ghana.gwire.domain.project.BuildingStorey;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.domain.project.ProjectSettings;
+
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +37,8 @@ import java.util.Objects;
  */
 public final class ProjectStore {
 
-    public static final String FORMAT_VERSION = "1.0";
+    /** 1.0 single floor; 1.1 multi-storey + wiring routes (still loads 1.0 files). */
+    public static final String FORMAT_VERSION = "1.1";
     public static final String FILE_EXTENSION = "gwire";
 
     private static final Logger log = LoggerFactory.getLogger(ProjectStore.class);
@@ -51,14 +57,24 @@ public final class ProjectStore {
         root.put("createdAt", project.createdAt().toString());
         root.put("modifiedAt", project.modifiedAt().toString());
         root.set("settings", writeSettings(project.settings()));
+        // Backward-compatible single floorPlan = active storey snapshot
         root.set("floorPlan", writeFloorPlan(project.floorPlan()));
+        root.put("activeStoreyIndex", project.activeStoreyIndex());
+        ArrayNode storeysNode = root.putArray("storeys");
+        for (BuildingStorey s : project.storeys()) {
+            ObjectNode sn = storeysNode.addObject();
+            sn.put("id", s.id());
+            sn.put("name", s.name());
+            sn.put("level", s.level());
+            sn.set("floorPlan", writeFloorPlan(s.floorPlan()));
+        }
 
         Path parent = path.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
         MAPPER.writeValue(path.toFile(), root);
-        log.info("Saved project '{}' to {}", project.name(), path);
+        log.info("Saved project '{}' to {} ({} storeys)", project.name(), path, project.storeys().size());
     }
 
     public Project load(Path path) throws IOException {
@@ -81,12 +97,32 @@ public final class ProjectStore {
                 modified
         );
         readSettings(root.path("settings"), project.settings());
-        readFloorPlan(root.path("floorPlan"), project.floorPlan());
+
+        JsonNode storeysNode = root.path("storeys");
+        if (storeysNode.isArray() && storeysNode.size() > 0) {
+            List<BuildingStorey> loaded = new ArrayList<>();
+            for (JsonNode sn : storeysNode) {
+                FloorPlan fp = new FloorPlan();
+                readFloorPlan(sn.path("floorPlan"), fp);
+                loaded.add(new BuildingStorey(
+                        text(sn, "id", null),
+                        text(sn, "name", "Floor"),
+                        sn.path("level").asInt(0),
+                        fp
+                ));
+            }
+            int active = root.path("activeStoreyIndex").asInt(0);
+            project.replaceStoreys(loaded, active);
+        } else {
+            // Format 1.0: single floorPlan
+            readFloorPlan(root.path("floorPlan"), project.floorPlan());
+        }
         // lastReport is not persisted; leave null
-        log.info("Loaded project '{}' from {} ({} rooms, {} devices)",
+        log.info("Loaded project '{}' from {} ({} storeys, {} rooms, {} devices)",
                 project.name(), path,
-                project.floorPlan().rooms().size(),
-                project.floorPlan().devices().size());
+                project.storeys().size(),
+                project.totalRoomCount(),
+                project.totalDeviceCount());
         return project;
     }
 
@@ -166,6 +202,26 @@ public final class ProjectStore {
             dn.put("rotationDeg", d.rotationDeg());
             if (d.roomId() != null) {
                 dn.put("roomId", d.roomId());
+            }
+        }
+
+        n.put("showWiringRoutes", fp.isShowWiringRoutes());
+        ArrayNode routes = n.putArray("wiringRoutes");
+        for (WiringRoute wr : fp.wiringRoutes()) {
+            ObjectNode rn = routes.addObject();
+            rn.put("id", wr.id());
+            if (wr.circuitId() != null) {
+                rn.put("circuitId", wr.circuitId());
+            }
+            if (wr.cableComponentId() != null) {
+                rn.put("cableComponentId", wr.cableComponentId());
+            }
+            rn.put("label", wr.label());
+            ArrayNode pts = rn.putArray("points");
+            for (Vec2 p : wr.points()) {
+                ObjectNode pn = pts.addObject();
+                pn.put("x", p.x());
+                pn.put("y", p.y());
             }
         }
 
@@ -272,6 +328,30 @@ public final class ProjectStore {
                             id, componentId, symbolKey, nameOverride, x, y, rot, roomId
                     ));
                 }
+            }
+        }
+
+        if (n.has("showWiringRoutes")) {
+            fp.setShowWiringRoutes(n.get("showWiringRoutes").asBoolean(true));
+        }
+        JsonNode routes = n.path("wiringRoutes");
+        if (routes.isArray()) {
+            for (JsonNode rn : routes) {
+                List<Vec2> pts = new ArrayList<>();
+                JsonNode points = rn.path("points");
+                if (points.isArray()) {
+                    for (JsonNode p : points) {
+                        pts.add(new Vec2(p.path("x").asDouble(), p.path("y").asDouble()));
+                    }
+                }
+                WiringRoute wr = new WiringRoute(
+                        text(rn, "id", null),
+                        text(rn, "circuitId", null),
+                        text(rn, "cableComponentId", null),
+                        text(rn, "label", ""),
+                        pts
+                );
+                fp.addWiringRoute(wr);
             }
         }
 

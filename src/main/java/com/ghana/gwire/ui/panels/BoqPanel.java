@@ -5,6 +5,7 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.components.PlacedDevice;
+import com.ghana.gwire.domain.project.BuildingStorey;
 import com.ghana.gwire.domain.project.Project;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -80,8 +81,10 @@ public class BoqPanel {
         double grand = 0;
 
         Map<String, Integer> counts = new LinkedHashMap<>();
-        for (PlacedDevice d : project.floorPlan().devices()) {
-            counts.merge(d.componentId(), 1, Integer::sum);
+        for (BuildingStorey storey : project.storeys()) {
+            for (PlacedDevice d : storey.floorPlan().devices()) {
+                counts.merge(d.componentId(), 1, Integer::sum);
+            }
         }
         for (Map.Entry<String, Integer> e : counts.entrySet()) {
             String id = e.getKey();
