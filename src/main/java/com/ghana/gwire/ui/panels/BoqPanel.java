@@ -2,6 +2,7 @@ package com.ghana.gwire.ui.panels;
 
 import com.ghana.gwire.db.ComponentLibraryService;
 import com.ghana.gwire.db.LibraryBootstrap;
+import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.project.Project;
@@ -20,8 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Live Bill of Quantities derived from placed devices (Phase 3 starter).
- * Cable lengths and full calc-driven BOQ arrive in later phases.
+ * Bill of Quantities from placed devices + recommended circuit cable lengths (Phase 4).
  */
 public class BoqPanel {
 
@@ -40,7 +40,7 @@ public class BoqPanel {
 
         table = new TableView<>(rows);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.setPlaceholder(new Label("No devices yet — place symbols from the library."));
+        table.setPlaceholder(new Label("No items yet — place symbols or recalculate loads."));
         table.getColumns().add(col("Item", BoqRow::item));
         table.getColumns().add(col("Qty", BoqRow::qty));
         table.getColumns().add(col("Unit", BoqRow::unit));
@@ -48,7 +48,7 @@ public class BoqPanel {
         table.getColumns().add(col("Total", BoqRow::total));
         table.setFocusTraversable(false);
 
-        footer = new Label("Currency: GHS · placed-device counts (Phase 3)");
+        footer = new Label("Currency: GHS · devices + calc cable lengths");
         footer.getStyleClass().add("panel-footer");
 
         VBox content = new VBox(8, title, table, footer);
@@ -77,11 +77,12 @@ public class BoqPanel {
             return;
         }
         ComponentLibraryService lib = LibraryBootstrap.get();
+        double grand = 0;
+
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (PlacedDevice d : project.floorPlan().devices()) {
             counts.merge(d.componentId(), 1, Integer::sum);
         }
-        double grand = 0;
         for (Map.Entry<String, Integer> e : counts.entrySet()) {
             String id = e.getKey();
             int qty = e.getValue();
@@ -99,9 +100,34 @@ public class BoqPanel {
                     String.format("%.2f", total)
             ));
         }
+
+        DesignReport report = project.lastReport();
+        if (report != null) {
+            for (DesignReport.CableBoqLine line : report.cableBoq()) {
+                Optional<ElectricalComponent> cable = lib == null
+                        ? Optional.empty()
+                        : lib.getById(line.componentId());
+                String name = cable.map(ElectricalComponent::name)
+                        .orElse(line.description().isBlank() ? line.componentId() : line.description());
+                double unitCost = cable.map(ElectricalComponent::unitCostGhs).orElse(0.0);
+                double length = line.lengthM();
+                double total = unitCost * length;
+                grand += total;
+                rows.add(new BoqRow(
+                        name + " (circuit est.)",
+                        String.format("%.1f", length),
+                        "m",
+                        String.format("%.2f", unitCost),
+                        String.format("%.2f", total)
+                ));
+            }
+        }
+
         footer.setText(String.format(
-                "Currency: GHS · %d line(s) · subtotal %.2f · cables by length in Phase 4+",
-                rows.size(), grand
+                "Currency: GHS · %d line(s) · subtotal %.2f%s",
+                rows.size(),
+                grand,
+                report == null ? " · recalculate for cable lengths" : " · includes calc cables"
         ));
     }
 

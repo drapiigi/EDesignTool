@@ -54,7 +54,7 @@
 | 1 | Maven + JavaFX shell, menus, themes, layout placeholders | **Done** |
 | 2 | Floor plan module (draw + image/PDF import) | **Done** |
 | 3 | Electrical symbol library + starter component DB | **Done** |
-| 4 | Calculation & standards engine | Planned |
+| 4 | Calculation & standards engine | **Done** |
 | 5 | AI generation integration | Planned |
 | 6 | Real-time updates, BOQ, validation | Planned |
 | 7 | PDF export & reporting | Planned |
@@ -145,11 +145,18 @@
 - Canvas: drop to place · **drag placed devices to move** (live, grid snap, undo)
 - BOQ panel counts placed devices with GHS costs from catalogue
 
+### Done (Phase 4)
+
+- Load estimation (`LoadTables`), diversity (`DiversityCalculator`)
+- Circuit grouping (`CircuitBuilder`), cable length estimate, cable sizer (CSA + Vd)
+- `StandardsValidator` (NO_RCD, NO_EARTH, NO_DB, VD_EXCEEDED, OVERLOAD_MAIN, …)
+- `CalcEngine` → `DesignReport` stored on `Project.lastReport`
+- UI: Tools → Recalculate Loads / Validate Standards; calc results panel; BOQ cable lengths
+
 ### Open tasks
 
-- [ ] Phase 4: load calc, cable sizing, voltage drop, diversity
 - [ ] Phase 5: AI generate design (vision + LLM + rule fallback)
-- [ ] Phase 6: live model updates, full BOQ (cable lengths), standards warnings, project save/load
+- [ ] Phase 6: project save/load, richer live model updates
 - [ ] Phase 7: PDF exports (plans, SLD, schedules, BOQ, checklist)
 - [ ] Phase 8: jpackage installers, sample project, full docs
 
@@ -160,9 +167,9 @@
 ```
 src/main/java/com/ghana/gwire/
   Main.java, GWireApp.java
-  domain/geometry/, domain/floorplan/, domain/project/, domain/components/
+  domain/geometry/, domain/floorplan/, domain/project/, domain/components/, domain/calc/
   db/ (H2 library, seed, repository)
-  service/importing/, service/history/
+  service/importing/, service/history/, service/calc/
   ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/, ui/symbols/
 src/main/resources/css/
 src/test/java/

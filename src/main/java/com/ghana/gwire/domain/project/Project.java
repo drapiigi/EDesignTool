@@ -1,5 +1,6 @@
 package com.ghana.gwire.domain.project;
 
+import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ public final class Project {
     private Instant modifiedAt;
     private final ProjectSettings settings;
     private final FloorPlan floorPlan;
+    private DesignReport lastReport;
 
     public Project(String name) {
         this.id = UUID.randomUUID().toString();
@@ -59,6 +61,16 @@ public final class Project {
 
     public FloorPlan floorPlan() {
         return floorPlan;
+    }
+
+    /** Most recent calculation report, if any (Phase 4). */
+    public DesignReport lastReport() {
+        return lastReport;
+    }
+
+    public void setLastReport(DesignReport lastReport) {
+        this.lastReport = lastReport;
+        touch();
     }
 
     public String supplySummary() {

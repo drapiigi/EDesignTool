@@ -200,3 +200,21 @@
 .symbol-library-panel .list-cell:filled:hover {
     -fx-background-color: #2a3344;
 }
+
+.calc-results-panel .list-cell {
+    -fx-text-fill: #e8edf5;
+    -fx-background-color: transparent;
+    -fx-wrap-text: true;
+}
+
+.calc-results-panel .list-cell.issue-error {
+    -fx-text-fill: #f07178;
+}
+
+.calc-results-panel .list-cell.issue-warning {
+    -fx-text-fill: #f0b429;
+}
+
+.calc-results-panel .list-cell.issue-info {
+    -fx-text-fill: #9aa6b8;
+}

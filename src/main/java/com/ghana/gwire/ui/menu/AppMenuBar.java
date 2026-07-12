@@ -77,8 +77,9 @@ public class AppMenuBar {
 
         Menu tools = new Menu("_Tools");
         tools.getItems().addAll(
-                disabled("_Validate Standards (L.I. 2008)"),
-                disabled("_Recalculate Loads"),
+                item("_Recalculate Loads", KeyCode.R, true, window::recalculateLoads),
+                item("_Validate Standards (L.I. 2008)", KeyCode.L, true, window::validateStandards),
+                new SeparatorMenuItem(),
                 item("Component _Library", null, false, window::showComponentLibrary),
                 new SeparatorMenuItem(),
                 disabled("AI _Co-pilot Chat…")

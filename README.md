@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a compliant design with
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, Apache PDFBox |
-| **Status** | Phase 3 — symbol library + component DB |
+| **Status** | Phase 4 — calculation & standards engine |
 
 See **[AGENTS.md](AGENTS.md)** for architecture, phases, and agent workflow.
 
@@ -57,17 +57,19 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 
 ---
 
-## Features (through Phase 3)
+## Features (through Phase 4)
 
 - Main window with dark/light themes, menus, status bar
 - Floor plan canvas (mm world units, 500 mm grid snap)
-- Tools: Select, Pan, Wall, Room, Door, Window, Place
+- Tools: Select, Pan, Wall, Room, Door, Window
 - Import floor plan background: images + PDF (page 1)
 - Undo/redo, delete selection, zoom / fit view
 - Project properties (name, house type, 230 V / 400 V supply)
 - **Symbol library** (H2 catalogue, ~73 Ghana starter components)
-- Place sockets, lights, switches, DBs, protection devices, etc.
-- BOQ panel from placed devices (GHS unit costs from catalogue)
+- Drag-and-drop place · drag placed symbols to move
+- **Load calc, diversity, cable sizing, voltage drop**
+- **Standards validation** (illustrative L.I. 2008 practice checks)
+- BOQ: devices + estimated circuit cable lengths (GHS)
 
 ### Canvas tips
 
@@ -82,8 +84,12 @@ JavaFX native libraries must still be available at runtime for the shaded jar on
 | Import plan | Toolbar **Import plan…** or File → Import Floor Plan |
 | Place symbol | **Drag** from symbol library onto the canvas |
 | Move symbol | **Select** tool → drag a placed device to a new position |
+| Recalculate | **Tools → Recalculate Loads** (Ctrl+R) |
+| Validate | **Tools → Validate Standards** (Ctrl+L) |
 
 Component library DB (auto-seeded): `~/.gwire/library`
+
+> Calculation parameters are simplified heuristics for preliminary design. A CEWP must verify real installations.
 
 ---
 
@@ -92,7 +98,7 @@ Component library DB (auto-seeded): `~/.gwire/library`
 1. **Phase 1** — Maven + JavaFX shell ✅  
 2. **Phase 2** — Floor plan drawing + import ✅  
 3. **Phase 3** — Symbol library + starter component DB ✅  
-4. **Phase 4** — Calculation & standards engine  
+4. **Phase 4** — Calculation & standards engine ✅  
 5. **Phase 5** — AI design generation  
 6. **Phase 6** — Real-time updates, BOQ, validation, save/load  
 7. **Phase 7** — PDF export & reports  

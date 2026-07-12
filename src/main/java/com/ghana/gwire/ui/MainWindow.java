@@ -2,11 +2,14 @@ package com.ghana.gwire.ui;
 
 import com.ghana.gwire.GWireApp;
 import com.ghana.gwire.db.LibraryBootstrap;
+import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
+import com.ghana.gwire.service.calc.CalcEngine;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
 import com.ghana.gwire.ui.menu.AppMenuBar;
 import com.ghana.gwire.ui.panels.BoqPanel;
+import com.ghana.gwire.ui.panels.CalcResultsPanel;
 import com.ghana.gwire.ui.panels.PropertiesPanel;
 import com.ghana.gwire.ui.panels.StatusBar;
 import com.ghana.gwire.ui.panels.SymbolLibraryPanel;
@@ -19,11 +22,15 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Primary application chrome: library, floor-plan workspace, properties, BOQ, status.
+ * Primary application chrome: library, floor-plan, properties, calc, BOQ, status.
  */
 public class MainWindow {
+
+    private static final Logger log = LoggerFactory.getLogger(MainWindow.class);
 
     private final Stage stage;
     private final ThemeManager themeManager;
@@ -32,8 +39,10 @@ public class MainWindow {
     private final FloorPlanWorkspace workspace;
     private final PropertiesPanel propertiesPanel;
     private final SymbolLibraryPanel symbolLibraryPanel;
+    private final CalcResultsPanel calcResultsPanel;
     private final BoqPanel boqPanel;
     private final AppMenuBar menuBar;
+    private final CalcEngine calcEngine = new CalcEngine();
 
     private Project project;
 
@@ -44,6 +53,7 @@ public class MainWindow {
         this.workspace = new FloorPlanWorkspace();
         this.propertiesPanel = new PropertiesPanel();
         this.symbolLibraryPanel = new SymbolLibraryPanel();
+        this.calcResultsPanel = new CalcResultsPanel();
         this.boqPanel = new BoqPanel();
         this.menuBar = new AppMenuBar(this);
 
@@ -60,10 +70,14 @@ public class MainWindow {
 
         symbolLibraryPanel.setStatusSink(statusBar::setMessage);
 
-        SplitPane rightSplit = new SplitPane(propertiesPanel.getRoot(), boqPanel.getRoot());
+        SplitPane rightSplit = new SplitPane(
+                propertiesPanel.getRoot(),
+                calcResultsPanel.getRoot(),
+                boqPanel.getRoot()
+        );
         rightSplit.setOrientation(Orientation.VERTICAL);
-        rightSplit.setDividerPositions(0.55);
-        rightSplit.setPrefWidth(300);
+        rightSplit.setDividerPositions(0.28, 0.65);
+        rightSplit.setPrefWidth(340);
 
         SplitPane centerSplit = new SplitPane(
                 symbolLibraryPanel.getRoot(),
@@ -71,7 +85,7 @@ public class MainWindow {
                 rightSplit
         );
         centerSplit.setOrientation(Orientation.HORIZONTAL);
-        centerSplit.setDividerPositions(0.22, 0.72);
+        centerSplit.setDividerPositions(0.20, 0.68);
         VBox.setVgrow(centerSplit, Priority.ALWAYS);
 
         VBox centerColumn = new VBox(centerSplit);
@@ -93,7 +107,7 @@ public class MainWindow {
             // library optional at UI build time
         }
         statusBar.setMessage(
-                "Drag components from the library onto the plan · drag placed symbols to move ("
+                "Phase 4: place devices, then Tools → Recalculate Loads / Validate Standards ("
                         + count + " catalogue items)."
         );
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
@@ -137,6 +151,7 @@ public class MainWindow {
         workspace.bindProject(project);
         propertiesPanel.setProject(project);
         boqPanel.setProject(project);
+        calcResultsPanel.clear();
         refreshTitleAndStatus();
         refreshSelection();
         if (announce) {
@@ -151,7 +166,7 @@ public class MainWindow {
         info.setTitle("Open project");
         info.setHeaderText("Not yet available");
         info.setContentText(
-                "Phase 3 supports floor-plan editing, import, and the component library.\n"
+                "Phase 4 supports calculation and standards checks.\n"
                         + "Saving/loading .gwire project files is planned with the persistence layer."
         );
         info.showAndWait();
@@ -170,6 +185,82 @@ public class MainWindow {
         statusBar.setMessage("Component library reloaded ("
                 + (LibraryBootstrap.get() == null ? 0 : LibraryBootstrap.get().count())
                 + " items)");
+    }
+
+    /**
+     * Runs the full design calculation (loads, diversity, cable size, validation).
+     */
+    public void recalculateLoads() {
+        if (project == null) {
+            statusBar.setMessage("No project to calculate.");
+            return;
+        }
+        try {
+            DesignReport report = calcEngine.calculate(project, LibraryBootstrap.get());
+            project.setLastReport(report);
+            calcResultsPanel.showReport(report);
+            boqPanel.refresh();
+            refreshTitleAndStatus();
+            statusBar.setMessage(String.format(
+                    "Calculation complete · %.0f W after diversity · %.1f A · %d circuit(s) · %d error(s), %d warning(s)",
+                    report.totalAfterDiversityW(),
+                    report.totalDesignCurrentA(),
+                    report.circuits().size(),
+                    report.errorCount(),
+                    report.warningCount()
+            ));
+            log.info("Calc report: {}", report);
+        } catch (Exception ex) {
+            log.error("Calculation failed", ex);
+            statusBar.setMessage("Calculation failed: " + ex.getMessage());
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.initOwner(stage);
+            alert.setTitle("Calculation failed");
+            alert.setHeaderText("Could not recalculate loads");
+            alert.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    /**
+     * Same engine as recalculate; focuses user on validation outcomes.
+     */
+    public void validateStandards() {
+        recalculateLoads();
+        DesignReport report = project == null ? null : project.lastReport();
+        if (report == null) {
+            return;
+        }
+        Alert alert = new Alert(report.hasErrors() ? Alert.AlertType.WARNING : Alert.AlertType.INFORMATION);
+        alert.initOwner(stage);
+        alert.setTitle("Standards validation (L.I. 2008 practice)");
+        alert.setHeaderText(String.format(
+                "%d error(s), %d warning(s) · max Vd %.2f%%",
+                report.errorCount(),
+                report.warningCount(),
+                report.maxVoltageDropPercent()
+        ));
+        StringBuilder body = new StringBuilder();
+        body.append("Illustrative checks for preliminary design — verify with a CEWP.\n\n");
+        int shown = 0;
+        for (var issue : report.issues()) {
+            if (issue.severity() == com.ghana.gwire.domain.calc.Severity.INFO && shown > 8) {
+                continue;
+            }
+            body.append("• [").append(issue.severity()).append("] ")
+                    .append(issue.code()).append(": ")
+                    .append(issue.message()).append('\n');
+            shown++;
+            if (shown >= 20) {
+                body.append("… see Calculation panel for full list.\n");
+                break;
+            }
+        }
+        if (report.issues().isEmpty()) {
+            body.append("No issues raised for the current layout.");
+        }
+        alert.setContentText(body.toString());
+        alert.showAndWait();
     }
 
     public void setTool(DrawTool tool) {
@@ -222,7 +313,8 @@ public class MainWindow {
 
                 Stack: Java 21+, JavaFX 23+, Maven, H2, PDFBox
 
-                Phase 3: Symbol library + starter component DB (%d items).
+                Phase 4: Load calc, diversity, cable sizing, Vd, standards checks.
+                Catalogue: %d items.
                 """.formatted(GWireApp.APP_VERSION, n)
         );
         about.showAndWait();
@@ -235,6 +327,9 @@ public class MainWindow {
     private void refreshSelection() {
         propertiesPanel.showSelection(workspace.getSelection());
         boqPanel.refresh();
+        if (project != null && project.lastReport() != null) {
+            calcResultsPanel.showReport(project.lastReport());
+        }
         refreshTitleAndStatus();
     }
 
@@ -245,11 +340,19 @@ public class MainWindow {
             return;
         }
         stage.setTitle(GWireApp.APP_NAME + " — " + project.name());
-        statusBar.setSecondary(
-                "L.I. 2008 · " + project.supplySummary()
-                        + " · walls " + project.floorPlan().walls().size()
-                        + " · rooms " + project.floorPlan().rooms().size()
-                        + " · devices " + project.floorPlan().devices().size()
-        );
+        String secondary = "L.I. 2008 · " + project.supplySummary()
+                + " · walls " + project.floorPlan().walls().size()
+                + " · rooms " + project.floorPlan().rooms().size()
+                + " · devices " + project.floorPlan().devices().size();
+        DesignReport report = project.lastReport();
+        if (report != null) {
+            secondary += String.format(
+                    " · %.0f W (div) · %.1f A · Vd max %.1f%%",
+                    report.totalAfterDiversityW(),
+                    report.totalDesignCurrentA(),
+                    report.maxVoltageDropPercent()
+            );
+        }
+        statusBar.setSecondary(secondary);
     }
 }
