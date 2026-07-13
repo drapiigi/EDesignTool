@@ -9,20 +9,26 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
 
 /**
- * CAD-quality electrical symbols inspired by IEC 60617 / BS 3939 conventions
- * used on architectural lighting & power drawings.
+ * AutoCAD-style electrical plan symbols (IEC 60617 / BS 3939 conventions).
  *
  * <p>Drawn in local coordinates centred at (0,0); caller applies translate/rotate.
- * White/cyan strokes on dark plans for high contrast; selected state uses amber.
+ * Symbols are sized from a real plan diameter ({@link #NOMINAL_MM}) so they keep
+ * correct proportion relative to walls and rooms as the view zooms.
  */
 public final class SymbolRenderer {
 
-    private static final Color STROKE = Color.web("#eceff4");
-    private static final Color FILL = Color.web("#0b0f14", 0.92);
-    private static final Color ACCENT = Color.web("#88c0d0");
-    private static final Color SELECT = Color.web("#ebcb8b");
-    private static final Color SELECT_FILL = Color.web("#ebcb8b", 0.18);
-    private static final Color LABEL = Color.web("#c8d0dc");
+    /**
+     * Nominal symbol diameter on the plan (mm). ~320 mm is typical for power/lighting
+     * symbols on 1:50–1:100 domestic electrical drawings — small vs rooms, readable on walls.
+     */
+    public static final double NOMINAL_MM = 320;
+
+    private static final Color STROKE = Color.web("#ffffff");
+    private static final Color FILL = Color.web("#000000", 0.88);
+    private static final Color ACCENT = Color.web("#00d4ff");
+    private static final Color SELECT = Color.web("#ffff00");
+    private static final Color SELECT_FILL = Color.web("#ffff00", 0.16);
+    private static final Color LABEL = Color.web("#b8b8b8");
 
     private SymbolRenderer() {
     }
@@ -48,7 +54,8 @@ public final class SymbolRenderer {
 
         Color stroke = selected ? SELECT : STROKE;
         Color fill = selected ? SELECT_FILL : FILL;
-        double lw = selected ? Math.max(1.8, size * 0.07) : Math.max(1.35, size * 0.055);
+        // Hairline AutoCAD feel — thin strokes relative to symbol body
+        double lw = selected ? Math.max(1.1, size * 0.055) : Math.max(0.85, size * 0.042);
         g.setStroke(stroke);
         g.setFill(fill);
         g.setLineWidth(lw);
@@ -56,9 +63,9 @@ public final class SymbolRenderer {
         // Selection halo
         if (selected) {
             g.setStroke(SELECT);
-            g.setLineWidth(lw + 2.5);
-            g.setGlobalAlpha(0.35);
-            g.strokeOval(-size * 0.55, -size * 0.55, size * 1.1, size * 1.1);
+            g.setLineWidth(lw + 1.8);
+            g.setGlobalAlpha(0.40);
+            g.strokeOval(-size * 0.58, -size * 0.58, size * 1.16, size * 1.16);
             g.setGlobalAlpha(1.0);
             g.setStroke(stroke);
             g.setLineWidth(lw);
@@ -322,12 +329,12 @@ public final class SymbolRenderer {
     }
 
     private static void label(GraphicsContext g, String text, double x, double y, double size) {
-        // Skip annotation text on compact library / thumbnail icons
-        if (size < 30) {
+        // Skip annotation text on compact library thumbnails / far zoom
+        if (size < 16) {
             return;
         }
         g.setFill(LABEL);
-        g.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, Math.max(8.5, size * 0.26)));
+        g.setFont(Font.font("Consolas", FontWeight.NORMAL, Math.max(7.5, size * 0.24)));
         g.setTextAlign(TextAlignment.CENTER);
         g.fillText(text, x, y);
     }
@@ -340,26 +347,24 @@ public final class SymbolRenderer {
     }
 
     /**
-     * Suggested hit radius in plan millimetres for the given zoom (px/mm).
-     * Matches roughly half the on-screen symbol so picks stay stable while zooming.
+     * Hit radius in plan millimetres — slightly larger than the drawn symbol for easy pick.
      */
     public static double hitRadiusMm(double scale) {
-        return (screenSize(scale) * 0.55) / Math.max(scale, 0.005);
+        return Math.max(NOMINAL_MM * 0.55, (screenSize(scale) * 0.55) / Math.max(scale, 0.005));
     }
 
     /** @deprecated use {@link #hitRadiusMm(double)} with current canvas scale */
     @Deprecated
     public static double hitRadiusMm() {
-        return hitRadiusMm(0.04);
+        return hitRadiusMm(0.06);
     }
 
     /**
-     * On-screen symbol size: scales mildly with zoom so icons stay CAD-readable
-     * when zoomed out, without becoming huge when zoomed in.
+     * On-screen symbol size from true plan diameter ({@link #NOMINAL_MM}).
+     * Clamped so symbols stay legible when zoomed out and never dominate when zoomed in.
      */
     public static double screenSize(double scale) {
-        // scale is px/mm; at 0.04 ≈ default, want ~34px
-        double px = 22 + Math.log10(Math.max(scale, 0.008) * 1000) * 18;
-        return Math.clamp(px, 20, 56);
+        double px = NOMINAL_MM * Math.max(scale, 0.001);
+        return Math.clamp(px, 10, 36);
     }
 }

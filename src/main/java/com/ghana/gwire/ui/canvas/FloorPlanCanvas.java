@@ -63,10 +63,13 @@ public class FloorPlanCanvas {
     private Runnable modelChangeListener = () -> {
     };
 
-    /** Pixels per millimetre. */
-    private double scale = 0.04;
-    private double panX = 40;
-    private double panY = 40;
+    /**
+     * Pixels per millimetre (view zoom).
+     * ~0.06 ≈ fit a 12 m house in a typical window at ~1:100 print feel.
+     */
+    private double scale = 0.06;
+    private double panX = 48;
+    private double panY = 48;
 
     private Vec2 wallStart;
     private Vec2 dragStartWorld;
@@ -281,6 +284,13 @@ public class FloorPlanCanvas {
             maxY = any ? Math.max(maxY, r.y() + r.heightMm()) : r.y() + r.heightMm();
             any = true;
         }
+        for (PlacedDevice d : floorPlan.devices()) {
+            minX = any ? Math.min(minX, d.xMm()) : d.xMm();
+            minY = any ? Math.min(minY, d.yMm()) : d.yMm();
+            maxX = any ? Math.max(maxX, d.xMm()) : d.xMm();
+            maxY = any ? Math.max(maxY, d.yMm()) : d.yMm();
+            any = true;
+        }
         BackgroundImage bg = floorPlan.background();
         if (bg != null) {
             Image img = rasterCache.get(bg.sourcePath());
@@ -294,16 +304,25 @@ public class FloorPlanCanvas {
                 any = true;
             }
         }
-        double worldW = Math.max(1000, maxX - minX);
-        double worldH = Math.max(1000, maxY - minY);
-        double pad = 40;
+        // Margin so walls/symbols are not clipped at edges (AutoCAD zoom extents feel)
+        double marginMm = 800;
+        minX -= marginMm;
+        minY -= marginMm;
+        maxX += marginMm;
+        maxY += marginMm;
+        double worldW = Math.max(2000, maxX - minX);
+        double worldH = Math.max(2000, maxY - minY);
+        double pad = Math.max(28, Math.min(canvas.getWidth(), canvas.getHeight()) * 0.04);
         double sx = (canvas.getWidth() - 2 * pad) / worldW;
         double sy = (canvas.getHeight() - 2 * pad) / worldH;
-        scale = Math.clamp(Math.min(sx, sy), 0.005, 0.5);
-        panX = pad - minX * scale;
-        panY = pad - minY * scale;
+        scale = Math.clamp(Math.min(sx, sy), 0.004, 0.45);
+        // Center the extents in the viewport
+        double contentW = worldW * scale;
+        double contentH = worldH * scale;
+        panX = (canvas.getWidth() - contentW) / 2.0 - minX * scale;
+        panY = (canvas.getHeight() - contentH) / 2.0 - minY * scale;
         redraw();
-        status("Fit view · scale %.3f px/mm".formatted(scale));
+        status("Zoom extents · 1:%d · %.3f px/mm".formatted(CadStyle.approxDrawingScale(scale), scale));
     }
 
     public void undo() {
@@ -928,42 +947,72 @@ public class FloorPlanCanvas {
         selectionListener.run();
     }
 
-    // --- CAD drawing ---
+    // --- AutoCAD-style drawing ---
 
     private void drawGrid(GraphicsContext g, double w, double h) {
         double grid = floorPlan.gridMm();
-        double major = grid * 5; // every 5th minor = major (architectural feel)
+        double major = grid * 5; // e.g. 500 mm minor → 2.5 m major
+        double minorPx = grid * scale;
+        double majorPx = major * scale;
         Vec2 topLeft = screenToWorld(0, 0);
         Vec2 bottomRight = screenToWorld(w, h);
-        double x0 = Math.floor(topLeft.x() / grid) * grid;
-        double y0 = Math.floor(topLeft.y() / grid) * grid;
 
-        CadStyle.applySharpStroke(g, 1.0);
-        for (double x = x0; x <= bottomRight.x() + grid * 0.5; x += grid) {
+        // Adaptive density: hide minor (then major) when lines would clutter
+        boolean drawMinor = minorPx >= CadStyle.MIN_GRID_SPACING_PX;
+        boolean drawMajor = majorPx >= CadStyle.MIN_GRID_SPACING_PX * 0.85;
+        if (!drawMinor && !drawMajor) {
+            // Still draw origin
+            drawOriginAxes(g, w, h);
+            return;
+        }
+
+        double step = drawMinor ? grid : major;
+        double x0 = Math.floor(topLeft.x() / step) * step;
+        double y0 = Math.floor(topLeft.y() / step) * step;
+
+        CadStyle.applySharpStroke(g, 0.6);
+        for (double x = x0; x <= bottomRight.x() + step * 0.5; x += step) {
             boolean isMajor = Math.abs(Math.IEEEremainder(x, major)) < 1e-3;
+            if (!drawMinor && !isMajor) {
+                continue;
+            }
+            if (!drawMajor && isMajor) {
+                // still draw as minor tone if major spacing too tight
+                isMajor = false;
+            }
             g.setStroke(isMajor ? CadStyle.GRID_MAJOR : CadStyle.GRID_MINOR);
-            g.setLineWidth(isMajor ? 1.15 : 0.7);
+            g.setLineWidth(isMajor ? 0.9 : 0.55);
             double sx = worldToScreenX(x);
             g.strokeLine(sx, 0, sx, h);
         }
-        for (double y = y0; y <= bottomRight.y() + grid * 0.5; y += grid) {
+        for (double y = y0; y <= bottomRight.y() + step * 0.5; y += step) {
             boolean isMajor = Math.abs(Math.IEEEremainder(y, major)) < 1e-3;
+            if (!drawMinor && !isMajor) {
+                continue;
+            }
             g.setStroke(isMajor ? CadStyle.GRID_MAJOR : CadStyle.GRID_MINOR);
-            g.setLineWidth(isMajor ? 1.15 : 0.7);
+            g.setLineWidth(isMajor ? 0.9 : 0.55);
             double sy = worldToScreenY(y);
             g.strokeLine(0, sy, w, sy);
         }
+        drawOriginAxes(g, w, h);
+    }
 
-        // Origin axes (plan 0,0)
-        CadStyle.applySharpStroke(g, 1.4);
+    private void drawOriginAxes(GraphicsContext g, double w, double h) {
+        CadStyle.applySharpStroke(g, 1.0);
         g.setStroke(CadStyle.GRID_ORIGIN);
-        g.strokeLine(worldToScreenX(0), 0, worldToScreenX(0), h);
-        g.strokeLine(0, worldToScreenY(0), w, worldToScreenY(0));
-        // origin mark
         double ox = worldToScreenX(0);
         double oy = worldToScreenY(0);
+        g.strokeLine(ox, 0, ox, h);
+        g.strokeLine(0, oy, w, oy);
+        // AutoCAD-style UCS origin marker
+        double arm = 10;
+        g.setStroke(Color.web("#ff4444"));
+        g.strokeLine(ox, oy, ox + arm, oy); // X
+        g.setStroke(Color.web("#44ff44"));
+        g.strokeLine(ox, oy, ox, oy - arm); // Y (screen-up)
         g.setFill(CadStyle.GRID_ORIGIN);
-        g.fillOval(ox - 3.5, oy - 3.5, 7, 7);
+        g.fillOval(ox - 2.5, oy - 2.5, 5, 5);
     }
 
     private void drawBackground(GraphicsContext g) {
@@ -997,41 +1046,35 @@ public class FloorPlanCanvas {
             double w = r.widthMm() * scale;
             double h = r.heightMm() * scale;
 
-            // Soft hatch-like fill
+            // Floor fill only — walls define the boundary (AutoCAD room hatch feel)
             g.setFill(selected ? CadStyle.ROOM_FILL_SEL : CadStyle.ROOM_FILL);
             g.fillRect(x, y, w, h);
+            if (selected) {
+                CadStyle.applySharpStroke(g, CadStyle.lineWeight(1.2, scale));
+                g.setStroke(CadStyle.WALL_SEL);
+                g.setLineDashes(4, 3);
+                g.strokeRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2));
+                g.setLineDashes(null);
+            }
 
-            CadStyle.applySharpStroke(g, selected ? 2.0 : 1.25);
-            g.setStroke(selected ? CadStyle.ROOM_SEL : CadStyle.ROOM_EDGE);
-            g.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
-
-            // Corner ticks (CAD room annotation)
-            double tick = Math.min(10, Math.min(w, h) * 0.08);
-            g.setStroke(selected ? CadStyle.ROOM_SEL : CadStyle.DIM);
-            CadStyle.applySharpStroke(g, 1.0);
-            g.strokeLine(x, y, x + tick, y);
-            g.strokeLine(x, y, x, y + tick);
-            g.strokeLine(x + w, y, x + w - tick, y);
-            g.strokeLine(x + w, y, x + w, y + tick);
-            g.strokeLine(x, y + h, x + tick, y + h);
-            g.strokeLine(x, y + h, x, y + h - tick);
-            g.strokeLine(x + w, y + h, x + w - tick, y + h);
-            g.strokeLine(x + w, y + h, x + w, y + h - tick);
-
-            // Label block
-            String title = r.name();
-            String area = String.format("%.1f m²", r.areaM2());
-            String dims = String.format("%.2f × %.2f m", r.widthMm() / 1000.0, r.heightMm() / 1000.0);
-            g.setFont(CadStyle.labelFont(12));
-            g.setTextAlign(TextAlignment.LEFT);
-            g.setFill(CadStyle.ROOM_TEXT);
-            double lx = x + 8;
-            double ly = y + 16;
-            g.fillText(title, lx, ly);
-            g.setFont(CadStyle.smallFont(10));
+            // Centered room name + area (architectural annotation)
+            if (w < 36 || h < 28) {
+                continue;
+            }
+            String title = r.name().toUpperCase();
+            String meta = String.format("%.1f m²  ·  %.2f×%.2f m",
+                    r.areaM2(), r.widthMm() / 1000.0, r.heightMm() / 1000.0);
+            g.setTextAlign(TextAlignment.CENTER);
+            g.setFont(CadStyle.roomTitleFont(scale));
+            g.setFill(selected ? CadStyle.WALL_SEL : CadStyle.ROOM_TEXT);
+            double cx = x + w / 2;
+            double cy = y + h / 2;
+            g.fillText(title, cx, cy - 2);
+            g.setFont(CadStyle.roomMetaFont(scale));
             g.setFill(CadStyle.ROOM_DIM);
-            g.fillText(area + "  ·  " + dims, lx, ly + 14);
+            g.fillText(meta, cx, cy + Math.max(11, 280 * scale));
         }
+        g.setTextAlign(TextAlignment.LEFT);
     }
 
     private void drawWalls(GraphicsContext g) {
@@ -1043,7 +1086,10 @@ public class FloorPlanCanvas {
         }
     }
 
-    /** Architectural double-line wall with filled core and crisp outlines. */
+    /**
+     * Architectural double-line wall at true thickness (default 150 mm).
+     * Solid fill + crisp outlines — no construction centerline (plot-ready look).
+     */
     private void drawDoubleLineWall(GraphicsContext g, Wall wall, boolean selected) {
         Vec2 a = wall.start();
         Vec2 b = wall.end();
@@ -1052,8 +1098,8 @@ public class FloorPlanCanvas {
         if (len < 1e-6) {
             return;
         }
-        Vec2 n = dir.perpendicular(); // unit normal
-        double halfT = Math.max(wall.thicknessMm(), 80) / 2.0;
+        Vec2 n = dir.perpendicular();
+        double halfT = CadStyle.wallHalfMm(wall.thicknessMm(), scale);
 
         Vec2 a1 = a.add(n.scale(halfT));
         Vec2 a2 = a.add(n.scale(-halfT));
@@ -1072,29 +1118,18 @@ public class FloorPlanCanvas {
         g.setFill(selected ? CadStyle.WALL_SEL_FILL : CadStyle.WALL_FILL);
         g.fillPolygon(xs, ys, 4);
 
-        CadStyle.applySharpStroke(g, selected ? 1.8 : 1.15);
+        double lw = CadStyle.lineWeight(selected ? 1.4 : 0.95, scale);
+        CadStyle.applySharpStroke(g, lw);
         g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.WALL_OUTLINE);
         g.strokePolygon(xs, ys, 4);
 
-        // Centerline (construction reference) — dashed, subtle
-        CadStyle.applySharpStroke(g, 0.8);
-        g.setStroke(selected ? CadStyle.WALL_SEL.deriveColor(0, 1, 1, 0.55) : CadStyle.DIM);
-        g.setLineDashes(4, 4);
-        g.strokeLine(
-                worldToScreenX(a.x()), worldToScreenY(a.y()),
-                worldToScreenX(b.x()), worldToScreenY(b.y())
-        );
-        g.setLineDashes(null);
-
-        // End nodes
-        double r = selected ? 4.5 : 3.0;
-        g.setFill(selected ? CadStyle.WALL_SEL : CadStyle.WALL);
-        g.fillOval(worldToScreenX(a.x()) - r, worldToScreenY(a.y()) - r, r * 2, r * 2);
-        g.fillOval(worldToScreenX(b.x()) - r, worldToScreenY(b.y()) - r, r * 2, r * 2);
-        CadStyle.applySharpStroke(g, 1.0);
-        g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.WALL_OUTLINE);
-        g.strokeOval(worldToScreenX(a.x()) - r, worldToScreenY(a.y()) - r, r * 2, r * 2);
-        g.strokeOval(worldToScreenX(b.x()) - r, worldToScreenY(b.y()) - r, r * 2, r * 2);
+        // Subtle end caps only when selected (edit affordance)
+        if (selected) {
+            double r = 3.0;
+            g.setFill(CadStyle.WALL_SEL);
+            g.fillOval(worldToScreenX(a.x()) - r, worldToScreenY(a.y()) - r, r * 2, r * 2);
+            g.fillOval(worldToScreenX(b.x()) - r, worldToScreenY(b.y()) - r, r * 2, r * 2);
+        }
     }
 
     private void drawOpenings(GraphicsContext g) {
@@ -1113,7 +1148,7 @@ public class FloorPlanCanvas {
             double half = o.widthMm() / 2.0;
             Vec2 a = center.add(dir.scale(-half));
             Vec2 b = center.add(dir.scale(half));
-            double wallHalfT = Math.max(wall.thicknessMm(), 80) / 2.0;
+            double wallHalfT = CadStyle.wallHalfMm(wall.thicknessMm(), scale);
 
             boolean selected = selection.kind() == SelectionModel.Kind.OPENING
                     && selection.opening() != null
@@ -1128,19 +1163,19 @@ public class FloorPlanCanvas {
         }
     }
 
-    /** Plan door: clear opening + leaf + 90° swing arc (hinge at start). */
+    /** Plan door: clear opening, leaf, 90° swing — true width in plan mm. */
     private void drawDoorCad(
             GraphicsContext g, Vec2 a, Vec2 b, Vec2 dir, Vec2 perp,
             double wallHalfT, double widthMm, boolean selected
     ) {
         Color stroke = selected ? CadStyle.WALL_SEL : CadStyle.DOOR;
-        Color swing = selected ? CadStyle.WALL_SEL.deriveColor(0, 1, 1, 0.45) : CadStyle.DOOR_SWING;
+        Color swing = selected ? CadStyle.WALL_SEL.deriveColor(0, 1, 1, 0.50) : CadStyle.DOOR_SWING;
+        double pad = 2 / Math.max(scale, 0.01); // ~2 px clearance in mm
 
-        // Clear wall section (paper fill over wall core)
-        Vec2 a1 = a.add(perp.scale(wallHalfT + 4));
-        Vec2 a2 = a.add(perp.scale(-(wallHalfT + 4)));
-        Vec2 b1 = b.add(perp.scale(wallHalfT + 4));
-        Vec2 b2 = b.add(perp.scale(-(wallHalfT + 4)));
+        Vec2 a1 = a.add(perp.scale(wallHalfT + pad));
+        Vec2 a2 = a.add(perp.scale(-(wallHalfT + pad)));
+        Vec2 b1 = b.add(perp.scale(wallHalfT + pad));
+        Vec2 b2 = b.add(perp.scale(-(wallHalfT + pad)));
         g.setFill(CadStyle.PAPER);
         g.fillPolygon(
                 new double[]{worldToScreenX(a1.x()), worldToScreenX(b1.x()),
@@ -1150,32 +1185,29 @@ public class FloorPlanCanvas {
                 4
         );
 
-        // Jambs
-        CadStyle.applySharpStroke(g, selected ? 2.2 : 1.6);
+        double lw = CadStyle.lineWeight(selected ? 1.5 : 1.1, scale);
+        CadStyle.applySharpStroke(g, lw);
         g.setStroke(stroke);
+        // Jambs
         g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
                 worldToScreenX(a2.x()), worldToScreenY(a2.y()));
         g.strokeLine(worldToScreenX(b1.x()), worldToScreenY(b1.y()),
                 worldToScreenX(b2.x()), worldToScreenY(b2.y()));
 
-        // Door leaf (closed, along wall) + swing arc
         double leafLen = widthMm;
         double rPx = leafLen * scale;
         double ax = worldToScreenX(a.x());
         double ay = worldToScreenY(a.y());
-        // Leaf closed along wall toward b
-        CadStyle.applyCadStroke(g, selected ? 2.4 : 1.8);
-        g.setStroke(stroke);
-        g.setLineCap(StrokeLineCap.BUTT);
-        g.strokeLine(ax, ay, worldToScreenX(b.x()), worldToScreenY(b.y()));
 
-        // Open leaf at 90° along perp
+        // Open leaf at 90° (standard architectural plan symbol)
         Vec2 openEnd = a.add(perp.scale(leafLen));
+        CadStyle.applySharpStroke(g, lw);
+        g.setStroke(stroke);
         g.strokeLine(ax, ay, worldToScreenX(openEnd.x()), worldToScreenY(openEnd.y()));
 
-        // Swing arc (JavaFX angles: 0 = east, CCW; screen Y grows down)
+        // Swing arc
         g.setStroke(swing);
-        CadStyle.applyCadStroke(g, 1.2);
+        CadStyle.applyCadStroke(g, Math.max(0.7, lw * 0.75));
         double dirScreen = Math.toDegrees(Math.atan2(
                 worldToScreenY(a.y() + dir.y()) - ay,
                 worldToScreenX(a.x() + dir.x()) - ax
@@ -1197,29 +1229,24 @@ public class FloorPlanCanvas {
         }
         g.strokeArc(ax - rPx, ay - rPx, rPx * 2, rPx * 2, start, extent, ArcType.OPEN);
 
-        // Hinge node
+        // Hinge
+        double hr = Math.max(1.5, 2.2);
         g.setFill(stroke);
-        g.fillOval(ax - 2.5, ay - 2.5, 5, 5);
-
-        g.setFont(CadStyle.smallFont(9));
-        g.setFill(stroke);
-        g.setTextAlign(TextAlignment.CENTER);
-        Vec2 labelAt = a.add(b).scale(0.5).add(perp.scale(wallHalfT + 280));
-        g.fillText("D", worldToScreenX(labelAt.x()), worldToScreenY(labelAt.y()));
+        g.fillOval(ax - hr, ay - hr, hr * 2, hr * 2);
     }
 
-    /** Plan window: sill + double glazing lines across wall thickness. */
+    /** Plan window: frame + double glazing at wall thickness. */
     private void drawWindowCad(
             GraphicsContext g, Vec2 a, Vec2 b, Vec2 dir, Vec2 perp,
             double wallHalfT, boolean selected
     ) {
         Color stroke = selected ? CadStyle.WALL_SEL : CadStyle.WINDOW;
+        double pad = 1 / Math.max(scale, 0.01);
 
-        // Clear opening through wall
-        Vec2 a1 = a.add(perp.scale(wallHalfT + 2));
-        Vec2 a2 = a.add(perp.scale(-(wallHalfT + 2)));
-        Vec2 b1 = b.add(perp.scale(wallHalfT + 2));
-        Vec2 b2 = b.add(perp.scale(-(wallHalfT + 2)));
+        Vec2 a1 = a.add(perp.scale(wallHalfT + pad));
+        Vec2 a2 = a.add(perp.scale(-(wallHalfT + pad)));
+        Vec2 b1 = b.add(perp.scale(wallHalfT + pad));
+        Vec2 b2 = b.add(perp.scale(-(wallHalfT + pad)));
         g.setFill(CadStyle.PAPER);
         g.fillPolygon(
                 new double[]{worldToScreenX(a1.x()), worldToScreenX(b1.x()),
@@ -1229,33 +1256,24 @@ public class FloorPlanCanvas {
                 4
         );
 
-        // Outer frame
-        CadStyle.applySharpStroke(g, selected ? 2.0 : 1.4);
+        double lw = CadStyle.lineWeight(selected ? 1.4 : 1.0, scale);
+        CadStyle.applySharpStroke(g, lw);
         g.setStroke(stroke);
         g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
                 worldToScreenX(b1.x()), worldToScreenY(b1.y()));
         g.strokeLine(worldToScreenX(a2.x()), worldToScreenY(a2.y()),
                 worldToScreenX(b2.x()), worldToScreenY(b2.y()));
-        // Jambs
         g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
                 worldToScreenX(a2.x()), worldToScreenY(a2.y()));
         g.strokeLine(worldToScreenX(b1.x()), worldToScreenY(b1.y()),
                 worldToScreenX(b2.x()), worldToScreenY(b2.y()));
 
-        // Double glazing lines (parallel to wall, inset from outer faces)
-        double inset = wallHalfT * 0.35;
+        // Double glazing
+        double inset = wallHalfT * 0.38;
         Vec2 g1a = a.add(perp.scale(inset));
         Vec2 g1b = b.add(perp.scale(inset));
         Vec2 g2a = a.add(perp.scale(-inset));
         Vec2 g2b = b.add(perp.scale(-inset));
-        g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.ACCENT);
-        CadStyle.applySharpStroke(g, 1.1);
-        g.strokeLine(worldToScreenX(g1a.x()), worldToScreenY(g1a.y()),
-                worldToScreenX(g1b.x()), worldToScreenY(g1b.y()));
-        g.strokeLine(worldToScreenX(g2a.x()), worldToScreenY(g2a.y()),
-                worldToScreenX(g2b.x()), worldToScreenY(g2b.y()));
-
-        // Glass fill between glazing lines
         g.setFill(CadStyle.WINDOW_GLASS);
         g.fillPolygon(
                 new double[]{worldToScreenX(g1a.x()), worldToScreenX(g1b.x()),
@@ -1264,30 +1282,29 @@ public class FloorPlanCanvas {
                         worldToScreenY(g2b.y()), worldToScreenY(g2a.y())},
                 4
         );
-
-        g.setFont(CadStyle.smallFont(9));
-        g.setFill(stroke);
-        g.setTextAlign(TextAlignment.CENTER);
-        Vec2 mid = a.add(b).scale(0.5).add(perp.scale(wallHalfT + 220));
-        g.fillText("W", worldToScreenX(mid.x()), worldToScreenY(mid.y()));
+        CadStyle.applySharpStroke(g, Math.max(0.6, lw * 0.85));
+        g.setStroke(selected ? CadStyle.WALL_SEL : CadStyle.ACCENT);
+        g.strokeLine(worldToScreenX(g1a.x()), worldToScreenY(g1a.y()),
+                worldToScreenX(g1b.x()), worldToScreenY(g1b.y()));
+        g.strokeLine(worldToScreenX(g2a.x()), worldToScreenY(g2a.y()),
+                worldToScreenX(g2b.x()), worldToScreenY(g2b.y()));
     }
 
     private void drawPreview(GraphicsContext g) {
-        CadStyle.applyCadStroke(g, 1.8);
-        g.setLineDashes(7, 5);
+        CadStyle.applyCadStroke(g, CadStyle.lineWeight(1.4, scale));
+        g.setLineDashes(6, 4);
         g.setStroke(CadStyle.PREVIEW);
         if (wallStart != null && previewEnd != null) {
-            // Ghost double-line wall
             Vec2 a = wallStart;
             Vec2 b = previewEnd;
             Vec2 n = b.subtract(a).perpendicular();
             if (n.length() > 0.5) {
-                double halfT = 75;
+                double halfT = CadStyle.wallHalfMm(CadStyle.DEFAULT_WALL_MM, scale);
                 Vec2 a1 = a.add(n.scale(halfT));
                 Vec2 a2 = a.add(n.scale(-halfT));
                 Vec2 b1 = b.add(n.scale(halfT));
                 Vec2 b2 = b.add(n.scale(-halfT));
-                g.setFill(Color.web("#a3be8c", 0.18));
+                g.setFill(Color.web("#00ff88", 0.14));
                 g.fillPolygon(
                         new double[]{worldToScreenX(a1.x()), worldToScreenX(b1.x()),
                                 worldToScreenX(b2.x()), worldToScreenX(a2.x())},
@@ -1303,7 +1320,7 @@ public class FloorPlanCanvas {
             double len = wallStart.distanceTo(previewEnd);
             g.setLineDashes(null);
             g.setFill(CadStyle.PREVIEW);
-            g.setFont(CadStyle.labelFont(11));
+            g.setFont(CadStyle.labelFont(Math.clamp(10 * (scale / 0.06), 9, 13)));
             g.setTextAlign(TextAlignment.LEFT);
             g.fillText(String.format("%.0f mm  (%.2f m)", len, len / 1000.0),
                     worldToScreenX(previewEnd.x()) + 10,
@@ -1312,16 +1329,16 @@ public class FloorPlanCanvas {
         if (roomOrigin != null && roomPreviewCorner != null) {
             double x = Math.min(roomOrigin.x(), roomPreviewCorner.x());
             double y = Math.min(roomOrigin.y(), roomPreviewCorner.y());
-            double w = Math.abs(roomOrigin.x() - roomPreviewCorner.x());
-            double h = Math.abs(roomOrigin.y() - roomPreviewCorner.y());
-            g.setFill(Color.web("#a3be8c", 0.12));
-            g.fillRect(worldToScreenX(x), worldToScreenY(y), w * scale, h * scale);
-            g.strokeRect(worldToScreenX(x), worldToScreenY(y), w * scale, h * scale);
+            double rw = Math.abs(roomOrigin.x() - roomPreviewCorner.x());
+            double rh = Math.abs(roomOrigin.y() - roomPreviewCorner.y());
+            g.setFill(Color.web("#00ff88", 0.08));
+            g.fillRect(worldToScreenX(x), worldToScreenY(y), rw * scale, rh * scale);
+            g.strokeRect(worldToScreenX(x), worldToScreenY(y), rw * scale, rh * scale);
             g.setLineDashes(null);
             g.setFill(CadStyle.PREVIEW);
             g.setFont(CadStyle.labelFont(11));
             g.setTextAlign(TextAlignment.LEFT);
-            g.fillText(String.format("%.0f × %.0f mm  (%.1f m²)", w, h, (w * h) / 1_000_000.0),
+            g.fillText(String.format("%.0f × %.0f mm  (%.1f m²)", rw, rh, (rw * rh) / 1_000_000.0),
                     worldToScreenX(x) + 8, worldToScreenY(y) + 16);
         }
         g.setLineDashes(null);
@@ -1337,25 +1354,21 @@ public class FloorPlanCanvas {
             if (pts.size() < 2) {
                 continue;
             }
+            // Layer-style colours (AutoCAD circuit layers)
             double hue = (i * 47) % 360;
-            Color routeColor = Color.hsb(hue, 0.50, 0.88, 0.88);
-            // Soft outer stroke
-            CadStyle.applyCadStroke(g, Math.max(2.5, 3.2));
-            g.setStroke(routeColor.deriveColor(0, 1, 1, 0.25));
-            g.setLineDashes(null);
-            strokePolyline(g, pts);
-            // Primary dashed conductor
-            CadStyle.applyCadStroke(g, Math.max(1.3, 1.6));
+            Color routeColor = Color.hsb(hue, 0.65, 0.95, 0.90);
+            CadStyle.applyCadStroke(g, CadStyle.lineWeight(1.2, scale));
             g.setStroke(routeColor);
-            g.setLineDashes(8, 5);
+            g.setLineDashes(10, 5);
             strokePolyline(g, pts);
             g.setLineDashes(null);
-            // Nodes at vertices
+            // Small vertices
             g.setFill(routeColor);
+            double r = Math.max(1.5, CadStyle.lineWeight(1.5, scale));
             for (Vec2 p : pts) {
                 double sx = worldToScreenX(p.x());
                 double sy = worldToScreenY(p.y());
-                g.fillOval(sx - 2.2, sy - 2.2, 4.4, 4.4);
+                g.fillOval(sx - r, sy - r, r * 2, r * 2);
             }
             i++;
         }
@@ -1389,74 +1402,71 @@ public class FloorPlanCanvas {
     }
 
     private void drawHud(GraphicsContext g, double w, double h) {
-        // Status chip
+        int drawingScale = CadStyle.approxDrawingScale(scale);
         String place = movingDevice != null
-                ? " · dragging " + movingDevice.displayName()
+                ? " · move " + movingDevice.displayName()
                 : (dropHighlight ? " · drop to place" : "");
-        String status = "Grid %.0f mm · snap %s · %.3f px/mm · %d devices%s".formatted(
+        String status = "1:%d  ·  grid %.0f mm  ·  snap %s  ·  %d devices%s".formatted(
+                drawingScale,
                 floorPlan.gridMm(),
-                floorPlan.isSnapToGrid() ? "on" : "off",
-                scale,
+                floorPlan.isSnapToGrid() ? "ON" : "OFF",
                 floorPlan.devices().size(),
                 place);
 
-        g.setFont(CadStyle.smallFont(11));
-        double textW = Math.max(320, status.length() * 6.2);
-        double chipW = Math.min(w - 20, textW + 24);
-        double chipH = 26;
+        g.setFont(CadStyle.smallFont(10));
+        double chipW = Math.min(w - 20, Math.max(280, status.length() * 6.0 + 20));
+        double chipH = 24;
         double chipX = 10;
-        double chipY = h - 38;
+        double chipY = h - 36;
         g.setFill(CadStyle.HUD_BG);
-        g.fillRoundRect(chipX, chipY, chipW, chipH, 6, 6);
-        CadStyle.applySharpStroke(g, 1.0);
+        g.fillRect(chipX, chipY, chipW, chipH);
+        CadStyle.applySharpStroke(g, 0.8);
         g.setStroke(CadStyle.HUD_BORDER);
-        g.strokeRoundRect(chipX + 0.5, chipY + 0.5, chipW - 1, chipH - 1, 6, 6);
+        g.strokeRect(chipX + 0.5, chipY + 0.5, chipW - 1, chipH - 1);
         g.setFill(CadStyle.HUD_TEXT);
         g.setTextAlign(TextAlignment.LEFT);
-        g.fillText(status, chipX + 12, chipY + 17);
+        g.fillText(status, chipX + 10, chipY + 16);
 
-        // Scale bar (bottom-right) — CAD drawing sheet style
         drawScaleBar(g, w, h);
     }
 
     private void drawScaleBar(GraphicsContext g, double w, double h) {
         double barMm = CadStyle.niceScaleBarMm(scale);
         double barPx = barMm * scale;
-        if (barPx < 40 || barPx > w * 0.45) {
+        if (barPx < 36 || barPx > w * 0.42) {
             return;
         }
-        double margin = 16;
+        double margin = 14;
         double x1 = w - margin - barPx;
         double x2 = w - margin;
-        double y = h - 22;
-        double tick = 6;
+        double y = h - 20;
+        double tick = 5;
 
         g.setFill(CadStyle.HUD_BG);
-        g.fillRoundRect(x1 - 10, y - 18, barPx + 20, 28, 5, 5);
-        CadStyle.applySharpStroke(g, 1.0);
+        g.fillRect(x1 - 8, y - 16, barPx + 16, 24);
+        CadStyle.applySharpStroke(g, 0.8);
         g.setStroke(CadStyle.HUD_BORDER);
-        g.strokeRoundRect(x1 - 9.5, y - 17.5, barPx + 19, 27, 5, 5);
+        g.strokeRect(x1 - 7.5, y - 15.5, barPx + 15, 23);
 
-        // Alternating blocks (classic scale bar)
         int segs = 4;
         double segPx = barPx / segs;
         for (int i = 0; i < segs; i++) {
-            g.setFill(i % 2 == 0 ? CadStyle.SCALE_TICK : CadStyle.DIM);
-            g.fillRect(x1 + i * segPx, y - 3, segPx, 6);
+            g.setFill(i % 2 == 0 ? CadStyle.SCALE_TICK : Color.web("#333333"));
+            g.fillRect(x1 + i * segPx, y - 2.5, segPx, 5);
         }
-        CadStyle.applySharpStroke(g, 1.2);
+        CadStyle.applySharpStroke(g, 1.0);
         g.setStroke(CadStyle.SCALE_TICK);
         g.strokeLine(x1, y, x2, y);
-        g.strokeLine(x1, y - tick, x1, y + 2);
-        g.strokeLine(x2, y - tick, x2, y + 2);
+        g.strokeLine(x1, y - tick, x1, y + 1);
+        g.strokeLine(x2, y - tick, x2, y + 1);
 
-        g.setFont(CadStyle.smallFont(10));
+        g.setFont(CadStyle.smallFont(9));
         g.setFill(CadStyle.HUD_TEXT);
         g.setTextAlign(TextAlignment.CENTER);
         String label = barMm >= 1000
                 ? String.format("%.0f m", barMm / 1000.0)
                 : String.format("%.0f mm", barMm);
-        g.fillText(label, (x1 + x2) / 2, y - 8);
+        g.fillText("1:" + CadStyle.approxDrawingScale(scale) + "  ·  " + label, (x1 + x2) / 2, y - 7);
         g.setTextAlign(TextAlignment.LEFT);
     }
 }

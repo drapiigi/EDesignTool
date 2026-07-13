@@ -242,11 +242,12 @@ public class SymbolLibraryPanel {
         double w = canvas.getWidth();
         double h = canvas.getHeight();
         g.setImageSmoothing(true);
-        g.setFill(Color.web("#0b0f14"));
-        g.fillRoundRect(0, 0, w, h, 6, 6);
-        g.setStroke(Color.web("#3b4252"));
-        g.setLineWidth(1);
-        g.strokeRoundRect(0.5, 0.5, w - 1, h - 1, 6, 6);
-        SymbolRenderer.draw(g, symbolKey, w / 2, h / 2 - 1, 28, 0, false);
+        g.setFill(Color.web("#000000"));
+        g.fillRoundRect(0, 0, w, h, 4, 4);
+        g.setStroke(Color.web("#404040"));
+        g.setLineWidth(0.8);
+        g.strokeRoundRect(0.5, 0.5, w - 1, h - 1, 4, 4);
+        // Fixed thumbnail size; plan symbols use world-scale via SymbolRenderer.screenSize
+        SymbolRenderer.draw(g, symbolKey, w / 2, h / 2 - 1, 26, 0, false);
     }
 }
