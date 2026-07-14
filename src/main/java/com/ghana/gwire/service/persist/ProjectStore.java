@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ghana.gwire.domain.calc.CircuitKind;
 import com.ghana.gwire.domain.components.PlacedDevice;
+import com.ghana.gwire.domain.electrical.ChecklistReview;
+import com.ghana.gwire.domain.electrical.Circuit;
+import com.ghana.gwire.domain.electrical.ConsumerUnit;
 import com.ghana.gwire.domain.floorplan.BackgroundImage;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 import com.ghana.gwire.domain.floorplan.Opening;
@@ -32,16 +36,17 @@ import java.util.Objects;
 /**
  * Load/save GhanaWire projects as JSON ({@code .gwire} files) or packages ({@code .gwirez}).
  *
- * <p>Format 1.2: multi-storey + optional package embeds. Loads 1.0 / 1.1 / 1.2.
- * Calculation reports are not persisted (re-run Tools → Recalculate Loads).
+ * <p>Format 1.3: first-class circuits, consumer unit, checklist, device heights.
+ * Loads 1.0 / 1.1 / 1.2 / 1.3. Calculation reports are not persisted
+ * (re-run Tools → Recalculate Loads).
  */
 public final class ProjectStore {
 
     /**
-     * Current write version. 1.0 single floor; 1.1 multi-storey; 1.2 package metadata
-     * (embeddedRef / mediaHash). Always write 1.2 for new saves.
+     * Current write version. 1.0 single floor; 1.1 multi-storey; 1.2 package metadata;
+     * 1.3 first-class circuits / consumer unit / checklist.
      */
-    public static final String FORMAT_VERSION = "1.2";
+    public static final String FORMAT_VERSION = "1.3";
     public static final String FILE_EXTENSION = "gwire";
     public static final String PACKAGE_EXTENSION = "gwirez";
 
@@ -105,6 +110,11 @@ public final class ProjectStore {
             sn.put("level", s.level());
             sn.set("floorPlan", writeFloorPlan(s.floorPlan()));
         }
+        root.set("circuits", writeCircuits(project.circuits()));
+        if (project.consumerUnit() != null) {
+            root.set("consumerUnit", writeConsumerUnit(project.consumerUnit()));
+        }
+        root.set("checklistReview", writeChecklist(project.checklistReview()));
         return root;
     }
 
@@ -157,12 +167,16 @@ public final class ProjectStore {
             // Format 1.0: single floorPlan
             readFloorPlan(root.path("floorPlan"), project.floorPlan());
         }
+        readCircuits(root.path("circuits"), project);
+        readConsumerUnit(root.path("consumerUnit"), project);
+        readChecklist(root.path("checklistReview"), project);
         // lastReport is not persisted; leave null
-        log.info("Loaded project '{}' ({} storeys, {} rooms, {} devices)",
+        log.info("Loaded project '{}' ({} storeys, {} rooms, {} devices, {} circuits)",
                 project.name(),
                 project.storeys().size(),
                 project.totalRoomCount(),
-                project.totalDeviceCount());
+                project.totalDeviceCount(),
+                project.circuits().size());
         return project;
     }
 
@@ -250,6 +264,12 @@ public final class ProjectStore {
             dn.put("rotationDeg", d.rotationDeg());
             if (d.roomId() != null) {
                 dn.put("roomId", d.roomId());
+            }
+            if (d.circuitId() != null) {
+                dn.put("circuitId", d.circuitId());
+            }
+            if (d.mountingHeightMm() > 0) {
+                dn.put("mountingHeightMm", d.mountingHeightMm());
             }
         }
 
@@ -371,15 +391,20 @@ public final class ProjectStore {
                 double y = d.path("yMm").asDouble();
                 double rot = d.path("rotationDeg").asDouble(0);
                 String roomId = text(d, "roomId", null);
+                String circuitId = text(d, "circuitId", null);
+                double heightMm = d.path("mountingHeightMm").asDouble(0);
                 if (id == null) {
                     PlacedDevice pd = new PlacedDevice(componentId, symbolKey, x, y);
                     pd.setNameOverride(nameOverride);
                     pd.setRotationDeg(rot);
                     pd.setRoomId(roomId);
+                    pd.setCircuitId(circuitId);
+                    pd.setMountingHeightMm(heightMm);
                     fp.addDevice(pd);
                 } else {
                     fp.addDevice(new PlacedDevice(
-                            id, componentId, symbolKey, nameOverride, x, y, rot, roomId
+                            id, componentId, symbolKey, nameOverride, x, y, rot, roomId,
+                            circuitId, heightMm
                     ));
                 }
             }
@@ -422,6 +447,125 @@ public final class ProjectStore {
             image.setMediaHash(text(bg, "mediaHash", null));
             fp.setBackground(image);
         }
+    }
+
+    private ArrayNode writeCircuits(List<Circuit> circuits) {
+        ArrayNode arr = MAPPER.createArrayNode();
+        for (Circuit c : circuits) {
+            ObjectNode n = arr.addObject();
+            n.put("id", c.id());
+            n.put("name", c.name());
+            n.put("kind", c.kind().name());
+            if (c.roomId() != null) {
+                n.put("roomId", c.roomId());
+            }
+            ArrayNode ids = n.putArray("deviceIds");
+            for (String id : c.deviceIds()) {
+                ids.add(id);
+            }
+            n.put("wayNumber", c.wayNumber());
+            n.put("rcdGroup", c.rcdGroup());
+            n.put("breakerA", c.breakerA());
+            n.put("cableComponentId", c.cableComponentId());
+            n.put("cableSize", c.cableSize());
+            n.put("estimatedLengthM", c.estimatedLengthM());
+            n.put("notes", c.notes());
+        }
+        return arr;
+    }
+
+    private void readCircuits(JsonNode arr, Project project) {
+        if (arr == null || !arr.isArray()) {
+            return;
+        }
+        List<Circuit> list = new ArrayList<>();
+        for (JsonNode n : arr) {
+            CircuitKind kind = CircuitKind.OTHER;
+            try {
+                kind = CircuitKind.valueOf(text(n, "kind", "OTHER"));
+            } catch (IllegalArgumentException ignored) {
+                // default
+            }
+            Circuit c = new Circuit(text(n, "id", null), text(n, "name", "Circuit"), kind, text(n, "roomId", null));
+            JsonNode ids = n.path("deviceIds");
+            if (ids.isArray()) {
+                for (JsonNode id : ids) {
+                    c.addDeviceId(id.asText());
+                }
+            }
+            c.setWayNumber(n.path("wayNumber").asInt(0));
+            c.setRcdGroup(text(n, "rcdGroup", ""));
+            c.setBreakerA(n.path("breakerA").asDouble(0));
+            c.setCableComponentId(text(n, "cableComponentId", ""));
+            c.setCableSize(text(n, "cableSize", ""));
+            c.setEstimatedLengthM(n.path("estimatedLengthM").asDouble(0));
+            c.setNotes(text(n, "notes", ""));
+            list.add(c);
+        }
+        project.setCircuits(list);
+    }
+
+    private ObjectNode writeConsumerUnit(ConsumerUnit cu) {
+        ObjectNode n = MAPPER.createObjectNode();
+        n.put("id", cu.id());
+        n.put("name", cu.name());
+        n.put("ways", cu.ways());
+        n.put("incomerA", cu.incomerA());
+        n.put("rcdDescription", cu.rcdDescription());
+        ArrayNode ways = n.putArray("wayCircuitIds");
+        for (String id : cu.wayCircuitIds()) {
+            if (id == null) {
+                ways.addNull();
+            } else {
+                ways.add(id);
+            }
+        }
+        return n;
+    }
+
+    private void readConsumerUnit(JsonNode n, Project project) {
+        if (n == null || n.isMissingNode() || n.isNull()) {
+            return;
+        }
+        ConsumerUnit cu = new ConsumerUnit(
+                text(n, "id", null),
+                text(n, "name", "Main consumer unit"),
+                n.path("ways").asInt(12),
+                n.path("incomerA").asDouble(60),
+                text(n, "rcdDescription", "RCCB 63 A 30 mA")
+        );
+        JsonNode ways = n.path("wayCircuitIds");
+        if (ways.isArray()) {
+            for (int i = 0; i < ways.size() && i < cu.ways(); i++) {
+                JsonNode w = ways.get(i);
+                cu.setWayCircuit(i, w == null || w.isNull() ? null : w.asText(null));
+            }
+        }
+        project.setConsumerUnit(cu);
+    }
+
+    private ObjectNode writeChecklist(ChecklistReview review) {
+        ObjectNode n = MAPPER.createObjectNode();
+        for (var e : review.entries().entrySet()) {
+            ObjectNode en = n.putObject(e.getKey());
+            en.put("reviewed", e.getValue().reviewed());
+            en.put("note", e.getValue().note());
+        }
+        return n;
+    }
+
+    private void readChecklist(JsonNode n, Project project) {
+        if (n == null || n.isMissingNode() || !n.isObject()) {
+            return;
+        }
+        n.fields().forEachRemaining(e -> {
+            JsonNode v = e.getValue();
+            project.checklistReview().setReviewed(
+                    e.getKey(),
+                    v.path("reviewed").asBoolean(false),
+                    text(v, "note", "")
+            );
+        });
     }
 
     private static String text(JsonNode n, String field, String def) {

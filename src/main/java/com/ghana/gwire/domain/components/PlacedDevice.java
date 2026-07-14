@@ -18,9 +18,13 @@ public final class PlacedDevice {
     private double yMm;
     private double rotationDeg;
     private String roomId;
+    /** Persistent circuit assignment (Phase 14). */
+    private String circuitId;
+    /** Height above finished floor (mm); 0 = use category default / unset. */
+    private double mountingHeightMm;
 
     public PlacedDevice(String componentId, String symbolKey, double xMm, double yMm) {
-        this(UUID.randomUUID().toString(), componentId, symbolKey, null, xMm, yMm, 0, null);
+        this(UUID.randomUUID().toString(), componentId, symbolKey, null, xMm, yMm, 0, null, null, 0);
     }
 
     public PlacedDevice(
@@ -33,6 +37,21 @@ public final class PlacedDevice {
             double rotationDeg,
             String roomId
     ) {
+        this(id, componentId, symbolKey, nameOverride, xMm, yMm, rotationDeg, roomId, null, 0);
+    }
+
+    public PlacedDevice(
+            String id,
+            String componentId,
+            String symbolKey,
+            String nameOverride,
+            double xMm,
+            double yMm,
+            double rotationDeg,
+            String roomId,
+            String circuitId,
+            double mountingHeightMm
+    ) {
         this.id = Objects.requireNonNull(id, "id");
         this.componentId = Objects.requireNonNull(componentId, "componentId");
         this.symbolKey = Objects.requireNonNull(symbolKey, "symbolKey");
@@ -41,6 +60,8 @@ public final class PlacedDevice {
         this.yMm = yMm;
         this.rotationDeg = rotationDeg;
         this.roomId = roomId;
+        this.circuitId = circuitId;
+        this.mountingHeightMm = Math.max(0, mountingHeightMm);
     }
 
     public String id() {
@@ -92,6 +113,22 @@ public final class PlacedDevice {
         this.roomId = roomId;
     }
 
+    public String circuitId() {
+        return circuitId;
+    }
+
+    public void setCircuitId(String circuitId) {
+        this.circuitId = circuitId == null || circuitId.isBlank() ? null : circuitId;
+    }
+
+    public double mountingHeightMm() {
+        return mountingHeightMm;
+    }
+
+    public void setMountingHeightMm(double mountingHeightMm) {
+        this.mountingHeightMm = Math.max(0, mountingHeightMm);
+    }
+
     public Vec2 position() {
         return new Vec2(xMm, yMm);
     }
@@ -106,6 +143,9 @@ public final class PlacedDevice {
     }
 
     public PlacedDevice copy() {
-        return new PlacedDevice(id, componentId, symbolKey, nameOverride, xMm, yMm, rotationDeg, roomId);
+        return new PlacedDevice(
+                id, componentId, symbolKey, nameOverride, xMm, yMm, rotationDeg, roomId,
+                circuitId, mountingHeightMm
+        );
     }
 }

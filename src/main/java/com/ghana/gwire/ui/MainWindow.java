@@ -25,6 +25,7 @@ import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
 import com.ghana.gwire.ui.menu.AppMenuBar;
 import com.ghana.gwire.ui.panels.BoqPanel;
 import com.ghana.gwire.ui.panels.CalcResultsPanel;
+import com.ghana.gwire.ui.panels.ElectricalPanel;
 import com.ghana.gwire.ui.panels.PropertiesPanel;
 import com.ghana.gwire.ui.panels.StatusBar;
 import com.ghana.gwire.ui.panels.SymbolLibraryPanel;
@@ -71,6 +72,7 @@ public class MainWindow {
     private final PropertiesPanel propertiesPanel;
     private final SymbolLibraryPanel symbolLibraryPanel;
     private final CalcResultsPanel calcResultsPanel;
+    private final ElectricalPanel electricalPanel;
     private final BoqPanel boqPanel;
     private final AppMenuBar menuBar;
     private final CalcEngine calcEngine = new CalcEngine();
@@ -104,6 +106,7 @@ public class MainWindow {
         this.propertiesPanel = new PropertiesPanel();
         this.symbolLibraryPanel = new SymbolLibraryPanel();
         this.calcResultsPanel = new CalcResultsPanel();
+        this.electricalPanel = new ElectricalPanel();
         this.boqPanel = new BoqPanel();
         this.menuBar = new AppMenuBar(this);
 
@@ -127,15 +130,18 @@ public class MainWindow {
         });
 
         symbolLibraryPanel.setStatusSink(statusBar::setMessage);
+        electricalPanel.setStatusSink(statusBar::setMessage);
+        electricalPanel.setModelChanged(this::onModelChanged);
 
         SplitPane rightSplit = new SplitPane(
                 propertiesPanel.getRoot(),
                 calcResultsPanel.getRoot(),
+                electricalPanel.getRoot(),
                 boqPanel.getRoot()
         );
         rightSplit.setOrientation(Orientation.VERTICAL);
-        rightSplit.setDividerPositions(0.28, 0.65);
-        rightSplit.setPrefWidth(340);
+        rightSplit.setDividerPositions(0.22, 0.48, 0.75);
+        rightSplit.setPrefWidth(360);
 
         SplitPane centerSplit = new SplitPane(
                 symbolLibraryPanel.getRoot(),
@@ -242,6 +248,7 @@ public class MainWindow {
                 workspace.bindProject(project);
                 propertiesPanel.setProject(project);
                 boqPanel.setProject(project);
+                electricalPanel.setProject(project);
                 calcResultsPanel.clear();
                 workspace.getCanvas().fitToWindow();
                 refreshTitleAndStatus();
@@ -363,6 +370,7 @@ public class MainWindow {
         workspace.bindProject(project);
         propertiesPanel.setProject(project);
         boqPanel.setProject(project);
+        electricalPanel.setProject(project);
         calcResultsPanel.clear();
         refreshTitleAndStatus();
         refreshSelection();
@@ -467,6 +475,7 @@ public class MainWindow {
             workspace.bindProject(project);
             propertiesPanel.setProject(project);
             boqPanel.setProject(project);
+            electricalPanel.setProject(project);
             calcResultsPanel.clear();
             workspace.getCanvas().fitToWindow();
             refreshTitleAndStatus();
@@ -833,6 +842,8 @@ public class MainWindow {
             project.setLastReport(report);
             markCalcFresh(report);
             calcResultsPanel.showReport(report);
+            electricalPanel.setProject(project);
+            electricalPanel.refresh();
             boqPanel.refresh();
             refreshTitleAndStatus();
             statusBar.setMessage(String.format(
@@ -1270,6 +1281,7 @@ public class MainWindow {
             workspace.bindProject(project);
             propertiesPanel.setProject(project);
             boqPanel.setProject(project);
+            electricalPanel.setProject(project);
             calcResultsPanel.clear();
             workspace.getCanvas().fitToWindow();
             refreshTitleAndStatus();
@@ -1287,6 +1299,7 @@ public class MainWindow {
                 workspace.bindProject(project);
                 propertiesPanel.setProject(project);
                 boqPanel.setProject(project);
+                electricalPanel.setProject(project);
                 calcResultsPanel.clear();
                 workspace.getCanvas().fitToWindow();
                 refreshTitleAndStatus();

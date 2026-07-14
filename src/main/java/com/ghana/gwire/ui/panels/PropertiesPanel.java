@@ -1,5 +1,6 @@
 package com.ghana.gwire.ui.panels;
 
+import com.ghana.gwire.domain.electrical.Circuit;
 import com.ghana.gwire.domain.floorplan.BackgroundImage;
 import com.ghana.gwire.domain.floorplan.Opening;
 import com.ghana.gwire.domain.floorplan.Room;
@@ -16,6 +17,8 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.util.Objects;
+
 /**
  * Project settings and selection properties.
  */
@@ -28,6 +31,8 @@ public class PropertiesPanel {
     private final TextField houseTypeField;
     private final ComboBox<ProjectSettings.SupplyType> supplyCombo;
     private final TextField roomNameField;
+    private final TextField heightField;
+    private final ComboBox<CircuitChoice> circuitCombo;
 
     private Project project;
     private SelectionModel selection;
@@ -36,6 +41,7 @@ public class PropertiesPanel {
     private Runnable onGeometryChanged = () -> {
     };
     private boolean suppressSupplyEvents;
+    private boolean suppressDeviceEvents;
 
     public PropertiesPanel() {
         Label title = new Label("Properties");
@@ -103,11 +109,34 @@ public class PropertiesPanel {
             }
         });
 
+        heightField = new TextField();
+        heightField.setPromptText("Mounting height mm AFF");
+        heightField.setVisible(false);
+        heightField.setManaged(false);
+        heightField.setOnAction(e -> applyMountingHeight());
+        heightField.focusedProperty().addListener((o, was, is) -> {
+            if (was && !is) {
+                applyMountingHeight();
+            }
+        });
+
+        circuitCombo = new ComboBox<>();
+        circuitCombo.setMaxWidth(Double.MAX_VALUE);
+        circuitCombo.setVisible(false);
+        circuitCombo.setManaged(false);
+        circuitCombo.setPromptText("Circuit");
+        circuitCombo.setOnAction(e -> {
+            if (!suppressDeviceEvents) {
+                applyCircuitAssignment();
+            }
+        });
+
         Label standards = new Label(
                 "Defaults (Ghana L.I. 2008 context):\n"
                         + "• 230 V / 50 Hz single-phase\n"
                         + "• Grid snap 500 mm\n"
-                        + "• Units: millimetres on plan"
+                        + "• Units: millimetres on plan\n"
+                        + "• Device heights: sockets 300 / switches 1200 / lights 2400 mm"
         );
         standards.getStyleClass().add("panel-footer");
         standards.setWrapText(true);
@@ -119,6 +148,8 @@ public class PropertiesPanel {
                 selHeading,
                 selectionTitle,
                 roomNameField,
+                heightField,
+                circuitCombo,
                 selectionBody,
                 standards
         );
@@ -181,6 +212,7 @@ public class PropertiesPanel {
             selectionTitle.setText("Nothing selected");
             selectionBody.setText("Select a wall, room, door, or window.");
             hideRoomName();
+            hideDeviceFields();
             return;
         }
         switch (selection.kind()) {
@@ -194,6 +226,7 @@ public class PropertiesPanel {
                                         w.end().x(), w.end().y())
                 );
                 hideRoomName();
+                hideDeviceFields();
             }
             case ROOM -> {
                 Room r = selection.room();
@@ -205,6 +238,7 @@ public class PropertiesPanel {
                         "Size: %.0f × %.0f mm\nArea: %.2f m²\nOrigin: (%.0f, %.0f)"
                                 .formatted(r.widthMm(), r.heightMm(), r.areaM2(), r.x(), r.y())
                 );
+                hideDeviceFields();
             }
             case OPENING -> {
                 Opening o = selection.opening();
@@ -214,27 +248,37 @@ public class PropertiesPanel {
                                 .formatted(o.widthMm(), o.t() * 100, shortId(o.wallId()))
                 );
                 hideRoomName();
+                hideDeviceFields();
             }
             case DEVICE -> {
                 var d = selection.device();
                 selectionTitle.setText("Device");
+                String circuitLabel = "—";
+                if (d.circuitId() != null && project != null) {
+                    circuitLabel = project.findCircuit(d.circuitId())
+                            .map(Circuit::name)
+                            .orElse(shortId(d.circuitId()));
+                }
                 selectionBody.setText(
-                        "Name: %s\nComponent: %s\nSymbol: %s\nPosition: (%.0f, %.0f) mm\nRotation: %.0f°"
+                        "Name: %s\nComponent: %s\nSymbol: %s\nPosition: (%.0f, %.0f) mm\nRotation: %.0f°\nCircuit: %s"
                                 .formatted(
                                         d.displayName(),
                                         d.componentId(),
                                         d.symbolKey(),
                                         d.xMm(),
                                         d.yMm(),
-                                        d.rotationDeg()
+                                        d.rotationDeg(),
+                                        circuitLabel
                                 )
                 );
                 hideRoomName();
+                showDeviceFields(d);
             }
             case NONE -> {
                 selectionTitle.setText("Nothing selected");
                 selectionBody.setText("Select a wall, room, door, or window.");
                 hideRoomName();
+                hideDeviceFields();
             }
         }
         if (project != null && project.floorPlan().background() != null) {
@@ -248,6 +292,41 @@ public class PropertiesPanel {
     private void hideRoomName() {
         roomNameField.setVisible(false);
         roomNameField.setManaged(false);
+    }
+
+    private void hideDeviceFields() {
+        heightField.setVisible(false);
+        heightField.setManaged(false);
+        circuitCombo.setVisible(false);
+        circuitCombo.setManaged(false);
+    }
+
+    private void showDeviceFields(com.ghana.gwire.domain.components.PlacedDevice d) {
+        heightField.setVisible(true);
+        heightField.setManaged(true);
+        heightField.setText(d.mountingHeightMm() > 0
+                ? String.format(java.util.Locale.ROOT, "%.0f", d.mountingHeightMm())
+                : "");
+        circuitCombo.setVisible(true);
+        circuitCombo.setManaged(true);
+        suppressDeviceEvents = true;
+        try {
+            circuitCombo.getItems().clear();
+            circuitCombo.getItems().add(new CircuitChoice(null, "(unassigned)"));
+            CircuitChoice selected = circuitCombo.getItems().get(0);
+            if (project != null) {
+                for (Circuit c : project.circuits()) {
+                    CircuitChoice choice = new CircuitChoice(c.id(), c.name() + " [" + c.kind().name() + "]");
+                    circuitCombo.getItems().add(choice);
+                    if (c.id().equals(d.circuitId())) {
+                        selected = choice;
+                    }
+                }
+            }
+            circuitCombo.getSelectionModel().select(selected);
+        } finally {
+            suppressDeviceEvents = false;
+        }
     }
 
     private void applyProjectName() {
@@ -288,6 +367,50 @@ public class PropertiesPanel {
         onGeometryChanged.run();
     }
 
+    private void applyMountingHeight() {
+        if (selection == null || selection.kind() != SelectionModel.Kind.DEVICE) {
+            return;
+        }
+        try {
+            String raw = heightField.getText() == null ? "" : heightField.getText().trim();
+            double h = raw.isEmpty() ? 0 : Double.parseDouble(raw);
+            selection.device().setMountingHeightMm(h);
+            if (project != null) {
+                project.touch();
+            }
+            onGeometryChanged.run();
+        } catch (NumberFormatException ignored) {
+            // keep previous
+        }
+    }
+
+    private void applyCircuitAssignment() {
+        if (selection == null || selection.kind() != SelectionModel.Kind.DEVICE || project == null) {
+            return;
+        }
+        CircuitChoice choice = circuitCombo.getValue();
+        if (choice == null) {
+            return;
+        }
+        var device = selection.device();
+        String oldId = device.circuitId();
+        String newId = choice.id();
+        if (Objects.equals(oldId, newId)) {
+            return;
+        }
+        // Remove from previous circuit membership
+        if (oldId != null) {
+            project.findCircuit(oldId).ifPresent(c -> c.removeDeviceId(device.id()));
+        }
+        device.setCircuitId(newId);
+        if (newId != null) {
+            project.findCircuit(newId).ifPresent(c -> c.addDeviceId(device.id()));
+        }
+        project.touch();
+        showSelection(selection);
+        onGeometryChanged.run();
+    }
+
     private static GridPane formGrid() {
         GridPane grid = new GridPane();
         grid.setHgap(8);
@@ -304,5 +427,12 @@ public class PropertiesPanel {
 
     private static String shortId(String id) {
         return id == null ? "" : id.substring(0, Math.min(8, id.length()));
+    }
+
+    private record CircuitChoice(String id, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 }

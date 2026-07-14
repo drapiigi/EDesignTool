@@ -472,8 +472,14 @@ public final class PdfExportService {
                         case WARNING -> "[WRN]";
                         case INFO -> "[INF]";
                     };
+                    boolean reviewed = project.checklistReview().isReviewed(issue.code());
+                    String rev = reviewed ? " [reviewed]" : " [open]";
+                    String note = project.checklistReview().note(issue.code());
                     y = gap(y, 4);
-                    y = wrapped(cs, mark + " " + issue.code() + ": " + issue.message(), y, 9);
+                    y = wrapped(cs, mark + rev + " " + issue.code() + ": " + issue.message(), y, 9);
+                    if (note != null && !note.isBlank()) {
+                        y = wrapped(cs, "  Note: " + note, y, 9);
+                    }
                 }
             }
 

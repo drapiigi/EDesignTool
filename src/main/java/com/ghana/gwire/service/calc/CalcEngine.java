@@ -8,7 +8,11 @@ import com.ghana.gwire.domain.calc.Severity;
 import com.ghana.gwire.domain.calc.ValidationIssue;
 import com.ghana.gwire.domain.components.ComponentCategory;
 import com.ghana.gwire.domain.components.ElectricalComponent;
+import com.ghana.gwire.domain.components.PlacedDevice;
+import com.ghana.gwire.domain.electrical.Circuit;
+import com.ghana.gwire.domain.project.BuildingStorey;
 import com.ghana.gwire.domain.project.Project;
+import com.ghana.gwire.service.electrical.CircuitMaterializer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -49,7 +53,9 @@ public final class CalcEngine {
                 .filter(c -> c.category() == ComponentCategory.CABLE)
                 .toList();
 
-        List<CircuitLoad> circuits = CircuitBuilder.build(project, catalogue, assumptions);
+        // Phase 14: prefer persistent circuits; materialize from geometry when empty
+        CircuitMaterializer.ensureCircuits(project, catalogue, assumptions);
+        List<CircuitLoad> circuits = buildLoads(project, catalogue, assumptions);
 
         double voltageV = project.settings().nominalVoltageV();
         if (voltageV <= 0) {
@@ -58,68 +64,14 @@ public final class CalcEngine {
 
         double totalConnected = circuits.stream().mapToDouble(CircuitLoad::connectedLoadW).sum();
         double totalAfterDiv = DiversityCalculator.applyToCircuits(circuits, voltageV, assumptions);
+        sizeAndProtect(circuits, cables, voltageV, assumptions);
+
         double overallFactor = DiversityCalculator.overallInstallationFactor(circuits.size());
-
-        double maxVdPct = 0;
-        Map<String, DesignReport.CableBoqLine> boqAgg = new LinkedHashMap<>();
-
-        for (CircuitLoad c : circuits) {
-            if (c.designCurrentA() <= 0 && c.connectedLoadW() > 0) {
-                c.setDesignCurrentA(c.connectedLoadW() / voltageV);
-            }
-
-            Optional<CableSizer.CableSelection> sized = CableSizer.size(
-                    c.designCurrentA(),
-                    c.estimatedLengthM(),
-                    voltageV,
-                    CableSizer.DEFAULT_MAX_VD_PERCENT,
-                    cables,
-                    c.kind(),
-                    assumptions
-            );
-
-            if (sized.isPresent()) {
-                CableSizer.CableSelection sel = sized.get();
-                ElectricalComponent cable = sel.cable();
-                c.setRecommendedCableId(cable.id());
-                c.setRecommendedCableSize(
-                        cable.standardSize() != null ? cable.standardSize() : cable.name());
-                c.setVoltageDropV(sel.voltageDropV());
-                c.setVoltageDropPercent(sel.voltageDropPercent());
-
-                boqAgg.merge(
-                        cable.id(),
-                        new DesignReport.CableBoqLine(
-                                cable.id(),
-                                c.estimatedLengthM(),
-                                cable.name() + (cable.standardSize() != null ? " (" + cable.standardSize() + ")" : "")
-                        ),
-                        (a, b) -> new DesignReport.CableBoqLine(
-                                a.componentId(),
-                                a.lengthM() + b.lengthM(),
-                                a.description()
-                        )
-                );
-            }
-
-            double breaker = StandardsValidator.nextStandardBreakerA(c.designCurrentA());
-            assumptions.add(AssumptionCodes.MCB_NEXT_STANDARD_RATING);
-            if (c.kind() == CircuitKind.SOCKET
-                    && c.designCurrentA() > StandardsValidator.SOCKET_HIGH_CURRENT_A
-                    && breaker < 32) {
-                breaker = 32;
-                assumptions.add(AssumptionCodes.SOCKET_BREAKER_PREFER_32A_GT_20A);
-            }
-            c.setRecommendedBreakerA(breaker);
-
-            if (c.voltageDropPercent() > maxVdPct) {
-                maxVdPct = c.voltageDropPercent();
-            }
-        }
+        double maxVdPct = circuits.stream().mapToDouble(CircuitLoad::voltageDropPercent).max().orElse(0);
+        Map<String, DesignReport.CableBoqLine> boqAgg = aggregateCableBoq(circuits, cables);
 
         double totalDesignCurrentA = totalAfterDiv / voltageV;
 
-        // Stable order for goldens and UI
         circuits.sort(Comparator
                 .comparing((CircuitLoad c) -> c.kind().name())
                 .thenComparing(CircuitLoad::name)
@@ -141,13 +93,147 @@ public final class CalcEngine {
             report.addIssue(ValidationIssue.of(
                     Severity.WARNING,
                     "NO_LIBRARY",
-                    "Component library was null or empty — loads and cable sizes may be incomplete."
+                    "Component library was null or empty - loads and cable sizes may be incomplete."
             ));
             assumptions.add(AssumptionCodes.NO_LIBRARY_WARNING);
         }
 
+        CircuitMaterializer.applyCalcResults(project, circuits);
         report.setAssumptions(assumptions.sorted());
         return report;
+    }
+
+    /**
+     * Build calc loads from persistent circuits (with device powers), or fall back to
+     * {@link CircuitBuilder} when no circuits exist.
+     */
+    private static List<CircuitLoad> buildLoads(
+            Project project,
+            Map<String, ElectricalComponent> catalogue,
+            AssumptionCollector assumptions
+    ) {
+        if (!project.circuits().isEmpty()) {
+            List<CircuitLoad> loads = new ArrayList<>();
+            Map<String, PlacedDevice> devices = indexDevices(project);
+            double voltageV = project.settings().nominalVoltageV() > 0
+                    ? project.settings().nominalVoltageV() : 230;
+            for (Circuit c : project.circuits()) {
+                CircuitLoad load = new CircuitLoad(c.id(), c.name(), c.kind(), c.roomId());
+                double power = 0;
+                for (String did : c.deviceIds()) {
+                    load.addDeviceId(did);
+                    PlacedDevice d = devices.get(did);
+                    if (d != null) {
+                        power += LoadTables.assumedPowerW(catalogue.get(d.componentId()), d, assumptions);
+                    }
+                }
+                load.setConnectedLoadW(power);
+                if (c.estimatedLengthM() > 0) {
+                    load.setEstimatedLengthM(c.estimatedLengthM());
+                } else {
+                    // fallback length via estimator defaults
+                    load.setEstimatedLengthM(CableLengthEstimator.defaultLengthM(c.kind()));
+                    assumptions.add(AssumptionCodes.LENGTH_DEFAULT_FALLBACK);
+                }
+                if (power > 0) {
+                    load.setDesignCurrentA(power / voltageV);
+                }
+                // Preserve CU / designer overrides from the persistent circuit model
+                if (c.breakerA() > 0) {
+                    load.setRecommendedBreakerA(c.breakerA());
+                }
+                if (c.cableComponentId() != null && !c.cableComponentId().isBlank()) {
+                    load.setRecommendedCableId(c.cableComponentId());
+                }
+                if (c.cableSize() != null && !c.cableSize().isBlank()) {
+                    load.setRecommendedCableSize(c.cableSize());
+                }
+                loads.add(load);
+            }
+            return loads;
+        }
+        return CircuitBuilder.build(project, catalogue, assumptions);
+    }
+
+    private static Map<String, PlacedDevice> indexDevices(Project project) {
+        Map<String, PlacedDevice> map = new LinkedHashMap<>();
+        for (BuildingStorey s : project.storeys()) {
+            for (PlacedDevice d : s.floorPlan().devices()) {
+                map.put(d.id(), d);
+            }
+        }
+        return map;
+    }
+
+    private static void sizeAndProtect(
+            List<CircuitLoad> circuits,
+            List<ElectricalComponent> cables,
+            double voltageV,
+            AssumptionCollector assumptions
+    ) {
+        for (CircuitLoad c : circuits) {
+            if (c.designCurrentA() <= 0 && c.connectedLoadW() > 0) {
+                c.setDesignCurrentA(c.connectedLoadW() / voltageV);
+            }
+            Optional<CableSizer.CableSelection> sized = CableSizer.size(
+                    c.designCurrentA(),
+                    c.estimatedLengthM(),
+                    voltageV,
+                    CableSizer.DEFAULT_MAX_VD_PERCENT,
+                    cables,
+                    c.kind(),
+                    assumptions
+            );
+            if (sized.isPresent()) {
+                CableSizer.CableSelection sel = sized.get();
+                ElectricalComponent cable = sel.cable();
+                c.setRecommendedCableId(cable.id());
+                c.setRecommendedCableSize(
+                        cable.standardSize() != null ? cable.standardSize() : cable.name());
+                c.setVoltageDropV(sel.voltageDropV());
+                c.setVoltageDropPercent(sel.voltageDropPercent());
+            }
+            double breaker = StandardsValidator.nextStandardBreakerA(c.designCurrentA());
+            assumptions.add(AssumptionCodes.MCB_NEXT_STANDARD_RATING);
+            if (c.kind() == CircuitKind.SOCKET
+                    && c.designCurrentA() > StandardsValidator.SOCKET_HIGH_CURRENT_A
+                    && breaker < 32) {
+                breaker = 32;
+                assumptions.add(AssumptionCodes.SOCKET_BREAKER_PREFER_32A_GT_20A);
+            }
+            // Prefer user/CU override if already set higher on load from circuit
+            if (c.recommendedBreakerA() > breaker) {
+                breaker = c.recommendedBreakerA();
+            }
+            c.setRecommendedBreakerA(breaker);
+        }
+    }
+
+    private static Map<String, DesignReport.CableBoqLine> aggregateCableBoq(
+            List<CircuitLoad> circuits,
+            List<ElectricalComponent> cables
+    ) {
+        Map<String, DesignReport.CableBoqLine> boqAgg = new LinkedHashMap<>();
+        Map<String, ElectricalComponent> byId = new LinkedHashMap<>();
+        for (ElectricalComponent c : cables) {
+            byId.put(c.id(), c);
+        }
+        for (CircuitLoad c : circuits) {
+            if (c.recommendedCableId() == null) {
+                continue;
+            }
+            ElectricalComponent cable = byId.get(c.recommendedCableId());
+            String desc = cable != null
+                    ? cable.name() + (cable.standardSize() != null ? " (" + cable.standardSize() + ")" : "")
+                    : c.recommendedCableSize();
+            boqAgg.merge(
+                    c.recommendedCableId(),
+                    new DesignReport.CableBoqLine(c.recommendedCableId(), c.estimatedLengthM(), desc),
+                    (a, b) -> new DesignReport.CableBoqLine(
+                            a.componentId(), a.lengthM() + b.lengthM(), a.description())
+            );
+        }
+        return boqAgg;
     }
 
     /**
@@ -175,61 +261,17 @@ public final class CalcEngine {
                 .filter(c -> c.category() == ComponentCategory.CABLE)
                 .toList();
 
-        List<CircuitLoad> circuits = CircuitBuilder.build(project, map, assumptions);
+        CircuitMaterializer.ensureCircuits(project, map, assumptions);
+        List<CircuitLoad> circuits = buildLoads(project, map, assumptions);
         double voltageV = project.settings().nominalVoltageV() > 0
                 ? project.settings().nominalVoltageV() : 230;
 
         double totalConnected = circuits.stream().mapToDouble(CircuitLoad::connectedLoadW).sum();
         double totalAfterDiv = DiversityCalculator.applyToCircuits(circuits, voltageV, assumptions);
+        sizeAndProtect(circuits, cables, voltageV, assumptions);
         double overallFactor = DiversityCalculator.overallInstallationFactor(circuits.size());
-        double maxVdPct = 0;
-        Map<String, DesignReport.CableBoqLine> boqAgg = new LinkedHashMap<>();
-
-        for (CircuitLoad c : circuits) {
-            if (c.designCurrentA() <= 0 && c.connectedLoadW() > 0) {
-                c.setDesignCurrentA(c.connectedLoadW() / voltageV);
-            }
-            Optional<CableSizer.CableSelection> sized = CableSizer.size(
-                    c.designCurrentA(),
-                    c.estimatedLengthM(),
-                    voltageV,
-                    CableSizer.DEFAULT_MAX_VD_PERCENT,
-                    cables,
-                    c.kind(),
-                    assumptions
-            );
-            if (sized.isPresent()) {
-                CableSizer.CableSelection sel = sized.get();
-                ElectricalComponent cable = sel.cable();
-                c.setRecommendedCableId(cable.id());
-                c.setRecommendedCableSize(
-                        cable.standardSize() != null ? cable.standardSize() : cable.name());
-                c.setVoltageDropV(sel.voltageDropV());
-                c.setVoltageDropPercent(sel.voltageDropPercent());
-                boqAgg.merge(
-                        cable.id(),
-                        new DesignReport.CableBoqLine(
-                                cable.id(),
-                                c.estimatedLengthM(),
-                                cable.name() + (cable.standardSize() != null ? " (" + cable.standardSize() + ")" : "")
-                        ),
-                        (a, b) -> new DesignReport.CableBoqLine(
-                                a.componentId(), a.lengthM() + b.lengthM(), a.description())
-                );
-            }
-            double breaker = StandardsValidator.nextStandardBreakerA(c.designCurrentA());
-            assumptions.add(AssumptionCodes.MCB_NEXT_STANDARD_RATING);
-            if (c.kind() == CircuitKind.SOCKET
-                    && c.designCurrentA() > StandardsValidator.SOCKET_HIGH_CURRENT_A
-                    && breaker < 32) {
-                breaker = 32;
-                assumptions.add(AssumptionCodes.SOCKET_BREAKER_PREFER_32A_GT_20A);
-            }
-            c.setRecommendedBreakerA(breaker);
-            if (c.voltageDropPercent() > maxVdPct) {
-                maxVdPct = c.voltageDropPercent();
-            }
-        }
+        double maxVdPct = circuits.stream().mapToDouble(CircuitLoad::voltageDropPercent).max().orElse(0);
+        Map<String, DesignReport.CableBoqLine> boqAgg = aggregateCableBoq(circuits, cables);
 
         circuits.sort(Comparator
                 .comparing((CircuitLoad c) -> c.kind().name())
@@ -248,6 +290,7 @@ public final class CalcEngine {
         if (map.isEmpty() && project.totalDeviceCount() > 0) {
             assumptions.add(AssumptionCodes.NO_LIBRARY_WARNING);
         }
+        CircuitMaterializer.applyCalcResults(project, circuits);
         report.setAssumptions(assumptions.sorted());
         return report;
     }

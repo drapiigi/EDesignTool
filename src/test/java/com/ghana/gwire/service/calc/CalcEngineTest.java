@@ -83,6 +83,14 @@ class CalcEngineTest {
 
         project.setLastReport(report);
         assertEquals(report, project.lastReport());
+
+        // Phase 14: calc materializes persistent circuits on the project
+        assertFalse(project.circuits().isEmpty(), "expected persistent circuits after calc");
+        assertNotNull(project.consumerUnit());
+        // Second pass prefers persistent circuits and stays consistent
+        DesignReport again = engine.calculate(project, catalogue);
+        assertEquals(report.totalConnectedLoadW(), again.totalConnectedLoadW(), 1e-6);
+        assertEquals(report.circuits().size(), again.circuits().size());
     }
 
     @Test

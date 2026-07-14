@@ -241,9 +241,19 @@
 - PDF plan page plot scale bar (1:50 / 1:100)
 - HUD shows OSNAP/Ortho state
 
+### Done (Phase 14)
+
+- First-class `Circuit`, `ConsumerUnit`, `ChecklistReview`, `MountingHeights` (`domain/electrical/`)
+- `PlacedDevice.circuitId` + `mountingHeightMm`; Project circuits / CU / checklist
+- `CircuitMaterializer` — materialize on calc, rematerialize from plan, route remap
+- `CalcEngine` prefers persistent circuits; writes sizing back onto model
+- Format **1.3** save/load (`ProjectStore`)
+- UI: `ElectricalPanel` (Circuits / CU board / Cables / Checklist); device height + circuit in Properties
+- SLD ordered by CU ways; PDF checklist shows reviewed state
+
 ### Open tasks / next program
 
-- **Next implement:** Phase 14 — electrical model depth (or 13b CAD stretch)
+- **Next implement:** Phase 15 — product maturity (templates, scale calibration, price book, AI accept/reject) or 13b CAD stretch
 - Parallel: CEWP peer review of load tables; code signing for production
 - Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
 
@@ -254,10 +264,10 @@
 ```
 src/main/java/com/ghana/gwire/
   Main.java, GWireApp.java
-  domain/geometry/, domain/floorplan/, domain/project/, domain/components/, domain/calc/
+  domain/geometry/, domain/floorplan/, domain/project/, domain/components/, domain/calc/, domain/electrical/
   db/ (H2 library, seed, repository)
   ai/ (Phase 5 design generation)
-  service/importing/, service/history/, service/calc/, service/persist/, service/export/
+  service/importing/, service/history/, service/calc/, service/electrical/, service/persist/, service/export/
   ui/MainWindow.java, ui/menu/, ui/panels/, ui/theme/, ui/canvas/, ui/symbols/
 src/main/resources/css/
 src/test/java/

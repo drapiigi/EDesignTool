@@ -60,18 +60,19 @@ class ProjectPackageTest {
         assertNotNull(loaded.floorPlan().background().embeddedRef());
         Path cachePath = Path.of(loaded.floorPlan().background().sourcePath());
         assertTrue(Files.isRegularFile(cachePath), "cache media should exist after package load");
-        assertEquals("1.2", ProjectStore.FORMAT_VERSION);
+        assertEquals("1.3", ProjectStore.FORMAT_VERSION);
     }
 
     @Test
-    void plainGwireWritesFormat12() throws Exception {
+    void plainGwireWritesCurrentFormatVersion() throws Exception {
         Project project = new Project("Plain");
         Path file = temp.resolve("plain.gwire");
         ProjectStore store = new ProjectStore();
         store.save(project, file);
         String json = Files.readString(file);
-        assertTrue(json.contains("\"formatVersion\" : \"1.2\"")
-                || json.contains("\"formatVersion\": \"1.2\"")
-                || json.contains("\"formatVersion\":\"1.2\""));
+        String v = ProjectStore.FORMAT_VERSION;
+        assertTrue(json.contains("\"formatVersion\" : \"" + v + "\"")
+                || json.contains("\"formatVersion\": \"" + v + "\"")
+                || json.contains("\"formatVersion\":\"" + v + "\""));
     }
 }

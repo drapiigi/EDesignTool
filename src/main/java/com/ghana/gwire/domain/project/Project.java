@@ -1,6 +1,9 @@
 package com.ghana.gwire.domain.project;
 
 import com.ghana.gwire.domain.calc.DesignReport;
+import com.ghana.gwire.domain.electrical.ChecklistReview;
+import com.ghana.gwire.domain.electrical.Circuit;
+import com.ghana.gwire.domain.electrical.ConsumerUnit;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
 
 import java.time.Instant;
@@ -8,10 +11,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Top-level design project with multi-storey support (Phase 9).
+ * Top-level design project with multi-storey support (Phase 9)
+ * and first-class electrical model (Phase 14).
  * {@link #floorPlan()} returns the <em>active</em> storey's plan for backward compatibility.
  */
 public final class Project {
@@ -24,6 +29,9 @@ public final class Project {
     private final List<BuildingStorey> storeys = new ArrayList<>();
     private int activeStoreyIndex;
     private DesignReport lastReport;
+    private final List<Circuit> circuits = new ArrayList<>();
+    private ConsumerUnit consumerUnit;
+    private final ChecklistReview checklistReview = new ChecklistReview();
 
     public Project(String name) {
         this.id = UUID.randomUUID().toString();
@@ -173,6 +181,57 @@ public final class Project {
         }
         this.lastReport = lastReport;
         touch();
+    }
+
+    public List<Circuit> circuits() {
+        return Collections.unmodifiableList(circuits);
+    }
+
+    public void setCircuits(List<Circuit> next) {
+        circuits.clear();
+        if (next != null) {
+            for (Circuit c : next) {
+                if (c != null) {
+                    circuits.add(c);
+                }
+            }
+        }
+        touch();
+    }
+
+    public void addCircuit(Circuit circuit) {
+        if (circuit != null) {
+            circuits.add(circuit);
+            touch();
+        }
+    }
+
+    public Optional<Circuit> findCircuit(String id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        return circuits.stream().filter(c -> id.equals(c.id())).findFirst();
+    }
+
+    public ConsumerUnit consumerUnit() {
+        return consumerUnit;
+    }
+
+    public void setConsumerUnit(ConsumerUnit consumerUnit) {
+        this.consumerUnit = consumerUnit;
+        touch();
+    }
+
+    public ConsumerUnit ensureConsumerUnit() {
+        if (consumerUnit == null) {
+            consumerUnit = new ConsumerUnit("Main consumer unit", 12);
+            touch();
+        }
+        return consumerUnit;
+    }
+
+    public ChecklistReview checklistReview() {
+        return checklistReview;
     }
 
     public String supplySummary() {
