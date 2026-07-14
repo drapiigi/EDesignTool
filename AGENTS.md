@@ -231,7 +231,7 @@
 - Update check (`UpdateCheckService` + `docs/release/version.json`)
 - Packaging scripts: versioned artifacts, optional deb/MSI, WiX notes
 - PDF/About standards stamp with app version
-- CI: `.github/workflows/package.yml` (test + linux app-image on tags)
+- CI example: `docs/ci/package.yml.example` (copy to `.github/workflows/` when token has workflow scope)
 
 ### Open tasks / next program
 
