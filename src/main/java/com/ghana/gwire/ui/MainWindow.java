@@ -12,6 +12,7 @@ import com.ghana.gwire.service.calc.CalcEngine;
 import com.ghana.gwire.samples.SampleProjectFactory;
 import com.ghana.gwire.service.export.BoqExcelExportService;
 import com.ghana.gwire.service.export.PdfExportService;
+import com.ghana.gwire.service.persist.AutosaveService;
 import com.ghana.gwire.service.persist.ProjectStore;
 import com.ghana.gwire.service.sld.SingleLineDiagram;
 import com.ghana.gwire.service.sld.SingleLineDiagramBuilder;
@@ -25,8 +26,11 @@ import com.ghana.gwire.ui.panels.PropertiesPanel;
 import com.ghana.gwire.ui.panels.StatusBar;
 import com.ghana.gwire.ui.panels.SymbolLibraryPanel;
 import com.ghana.gwire.ui.theme.ThemeManager;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextInputDialog;
@@ -35,6 +39,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +49,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Optional;
 
 /**
  * Primary application chrome: library, floor-plan, properties, calc, BOQ, status.
@@ -63,10 +70,12 @@ public class MainWindow {
     private final AppMenuBar menuBar;
     private final CalcEngine calcEngine = new CalcEngine();
     private final ProjectStore projectStore = new ProjectStore();
+    private final AutosaveService autosaveService = new AutosaveService(projectStore);
     private final PdfExportService pdfExportService = new PdfExportService();
     private final BoqExcelExportService boqExcelExportService = new BoqExcelExportService();
     private final WiringRouteService wiringRouteService = new WiringRouteService();
     private final SingleLineDiagramBuilder sldBuilder = new SingleLineDiagramBuilder();
+    private Timeline autosaveTimeline;
 
     private Project project;
     private Path projectPath;
@@ -131,7 +140,10 @@ public class MainWindow {
         root.setCenter(centerColumn);
         root.setBottom(statusBar.getRoot());
 
+        stage.setOnCloseRequest(this::onCloseRequest);
+
         createProject("Untitled project", false);
+        startAutosaveTimer();
         int count = 0;
         try {
             if (LibraryBootstrap.get() != null) {
@@ -145,6 +157,130 @@ public class MainWindow {
                         + count + " catalogue items)."
         );
         statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
+    }
+
+    private void startAutosaveTimer() {
+        // Every 5 minutes when dirty — full multi-storey project
+        autosaveTimeline = new Timeline(new KeyFrame(Duration.minutes(5), e -> maybeAutosave()));
+        autosaveTimeline.setCycleCount(Timeline.INDEFINITE);
+        autosaveTimeline.play();
+    }
+
+    private void maybeAutosave() {
+        if (!dirty || project == null) {
+            return;
+        }
+        try {
+            autosaveService.autosave(project);
+            log.debug("Autosaved project {}", project.id());
+        } catch (Exception ex) {
+            log.warn("Autosave failed: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Offer recovery of crash autosave (called once after stage is shown).
+     */
+    public void checkCrashRecovery() {
+        Optional<Path> candidate = autosaveService.recoveryCandidate();
+        autosaveService.clearCleanExitMarker();
+        if (candidate.isEmpty()) {
+            return;
+        }
+        Path path = candidate.get();
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(stage);
+        alert.setTitle("Recover project");
+        alert.setHeaderText("An autosaved project was found after an unexpected exit.");
+        alert.setContentText("Recover \"" + path.getFileName() + "\"?");
+        ButtonType recover = new ButtonType("Recover", ButtonBar.ButtonData.YES);
+        ButtonType discard = new ButtonType("Discard", ButtonBar.ButtonData.NO);
+        alert.getButtonTypes().setAll(recover, discard);
+        var choice = alert.showAndWait();
+        if (choice.isPresent() && choice.get() == recover) {
+            try {
+                Project loaded = autosaveService.loadAutosave(path);
+                project = loaded;
+                projectPath = null;
+                dirty = true;
+                workspace.bindProject(project);
+                propertiesPanel.setProject(project);
+                boqPanel.setProject(project);
+                calcResultsPanel.clear();
+                workspace.getCanvas().fitToWindow();
+                refreshTitleAndStatus();
+                refreshSelection();
+                statusBar.setMessage("Recovered autosave — save the project to keep it.");
+            } catch (Exception ex) {
+                log.error("Recovery failed", ex);
+                ErrorDialog.show(stage, "Could not recover autosave", ex);
+            }
+        } else {
+            // Discard all autosaves from unclean session
+            for (Path p : autosaveService.listAutosaves()) {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (Exception ignored) {
+                    // best-effort
+                }
+            }
+        }
+    }
+
+    private void onCloseRequest(WindowEvent e) {
+        if (!promptUnsavedChanges()) {
+            e.consume();
+            return;
+        }
+        performCleanExit();
+    }
+
+    /** Graceful shutdown: clean-exit marker (autosave already handled by prompt). */
+    public void performCleanExit() {
+        if (autosaveTimeline != null) {
+            autosaveTimeline.stop();
+        }
+        autosaveService.writeCleanExitMarker();
+    }
+
+    /**
+     * @return true if caller may proceed (saved, discarded, or not dirty); false = cancel
+     */
+    private boolean promptUnsavedChanges() {
+        if (!dirty) {
+            return true;
+        }
+        ButtonType save = new ButtonType("Save", ButtonBar.ButtonData.YES);
+        ButtonType dontSave = new ButtonType("Don't save", ButtonBar.ButtonData.NO);
+        ButtonType cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.initOwner(stage);
+        confirm.setTitle("Unsaved changes");
+        confirm.setHeaderText("Project has unsaved changes");
+        confirm.setContentText("Save before continuing?");
+        confirm.getButtonTypes().setAll(save, dontSave, cancel);
+        Optional<ButtonType> choice = confirm.showAndWait();
+        if (choice.isEmpty() || choice.get() == cancel) {
+            return false;
+        }
+        if (choice.get() == save) {
+            if (projectPath == null) {
+                if (!saveProjectAsReturningSuccess()) {
+                    return false; // chooser cancelled → abort close
+                }
+            } else if (!writeProjectToReturningSuccess(projectPath)) {
+                return false;
+            }
+            if (project != null) {
+                autosaveService.deleteAutosave(project.id());
+            }
+            return true;
+        }
+        // Don't save
+        if (project != null) {
+            autosaveService.deleteAutosave(project.id());
+        }
+        return true;
     }
 
     public BorderPane getRoot() {
@@ -172,7 +308,7 @@ public class MainWindow {
     }
 
     public void newProject() {
-        if (!confirmDiscardIfDirty()) {
+        if (!promptUnsavedChanges()) {
             return;
         }
         TextInputDialog dialog = new TextInputDialog("New residence");
@@ -199,7 +335,7 @@ public class MainWindow {
     }
 
     public void openProject() {
-        if (!confirmDiscardIfDirty()) {
+        if (!promptUnsavedChanges()) {
             return;
         }
         FileChooser chooser = projectChooser("Open GhanaWire project");
@@ -220,16 +356,11 @@ public class MainWindow {
             refreshTitleAndStatus();
             refreshSelection();
             statusBar.setMessage("Opened " + file.getName()
-                    + " · " + project.floorPlan().rooms().size() + " room(s), "
-                    + project.floorPlan().devices().size() + " device(s)");
+                    + " · " + project.totalRoomCount() + " room(s), "
+                    + project.totalDeviceCount() + " device(s)");
         } catch (Exception ex) {
             log.error("Open failed", ex);
-            Alert err = new Alert(Alert.AlertType.ERROR);
-            err.initOwner(stage);
-            err.setTitle("Open project");
-            err.setHeaderText("Could not open project");
-            err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
-            err.showAndWait();
+            ErrorDialog.show(stage, "Could not open project", ex);
         }
     }
 
@@ -242,13 +373,18 @@ public class MainWindow {
             saveProjectAs();
             return;
         }
-        writeProjectTo(projectPath);
+        writeProjectToReturningSuccess(projectPath);
     }
 
     public void saveProjectAs() {
+        saveProjectAsReturningSuccess();
+    }
+
+    /** Save As; returns false if user cancelled or write failed. */
+    private boolean saveProjectAsReturningSuccess() {
         if (project == null) {
             statusBar.setMessage("No project to save.");
-            return;
+            return false;
         }
         FileChooser chooser = projectChooser("Save GhanaWire project");
         if (projectPath != null) {
@@ -260,30 +396,52 @@ public class MainWindow {
         }
         File file = chooser.showSaveDialog(stage);
         if (file == null) {
+            return false;
+        }
+        Path path = file.toPath();
+        String lower = path.getFileName().toString().toLowerCase();
+        if (!lower.endsWith(".gwire") && !lower.endsWith(".gwirez")) {
+            path = path.resolveSibling(path.getFileName().toString() + ".gwire");
+        }
+        return writeProjectToReturningSuccess(path);
+    }
+
+    /** File → Save as package (.gwirez) with embedded media. */
+    public void saveProjectAsPackage() {
+        if (project == null) {
+            statusBar.setMessage("No project to save.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save as package");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("GhanaWire package (*.gwirez)", "*.gwirez")
+        );
+        chooser.setInitialFileName(sanitizeFileName(project.name()) + ".gwirez");
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
             return;
         }
         Path path = file.toPath();
-        if (!path.getFileName().toString().toLowerCase().endsWith(".gwire")) {
-            path = path.resolveSibling(path.getFileName().toString() + ".gwire");
+        if (!path.getFileName().toString().toLowerCase().endsWith(".gwirez")) {
+            path = path.resolveSibling(path.getFileName().toString() + ".gwirez");
         }
-        writeProjectTo(path);
+        writeProjectToReturningSuccess(path);
     }
 
-    private void writeProjectTo(Path path) {
+    private boolean writeProjectToReturningSuccess(Path path) {
         try {
             projectStore.save(project, path);
             projectPath = path;
             dirty = false;
+            autosaveService.deleteAutosave(project.id());
             refreshTitleAndStatus();
             statusBar.setMessage("Saved " + path.getFileName());
+            return true;
         } catch (Exception ex) {
             log.error("Save failed", ex);
-            Alert err = new Alert(Alert.AlertType.ERROR);
-            err.initOwner(stage);
-            err.setTitle("Save project");
-            err.setHeaderText("Could not save project");
-            err.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
-            err.showAndWait();
+            ErrorDialog.show(stage, "Could not save project", ex);
+            return false;
         }
     }
 
@@ -291,24 +449,11 @@ public class MainWindow {
         FileChooser chooser = new FileChooser();
         chooser.setTitle(title);
         chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("GhanaWire project (*.gwire)", "*.gwire"),
+                new FileChooser.ExtensionFilter("GhanaWire project (*.gwire, *.gwirez)",
+                        "*.gwire", "*.gwirez"),
                 new FileChooser.ExtensionFilter("All files", "*.*")
         );
         return chooser;
-    }
-
-    private boolean confirmDiscardIfDirty() {
-        if (!dirty) {
-            return true;
-        }
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.initOwner(stage);
-        confirm.setTitle("Unsaved changes");
-        confirm.setHeaderText("Project has unsaved changes");
-        confirm.setContentText("Discard changes and continue?");
-        confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
-        var choice = confirm.showAndWait();
-        return choice.isPresent() && choice.get() == ButtonType.YES;
     }
 
     private void markDirty() {
@@ -953,7 +1098,7 @@ public class MainWindow {
      * Loads the bundled sample three-bedroom Ghana bungalow project.
      */
     public void openSampleThreeBedHouse() {
-        if (!confirmDiscardIfDirty()) {
+        if (!promptUnsavedChanges()) {
             return;
         }
         try {
@@ -1037,7 +1182,13 @@ public class MainWindow {
     }
 
     public void quit() {
-        stage.close();
+        // Triggers onCloseRequest (Save / Don't save / Cancel)
+        stage.fireEvent(new WindowEvent(stage, WindowEvent.WINDOW_CLOSE_REQUEST));
+        if (!stage.isShowing()) {
+            // already closed
+            return;
+        }
+        // If still showing, user cancelled — do nothing
     }
 
     private void refreshSelection() {

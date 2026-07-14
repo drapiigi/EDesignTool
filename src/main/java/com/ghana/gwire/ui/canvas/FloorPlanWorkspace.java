@@ -145,6 +145,9 @@ public class FloorPlanWorkspace {
             return;
         }
         project.setActiveStoreyIndex(clamped);
+        // Phase 10: undo stack is per active floor-plan only — clear so undo cannot
+        // apply another storey's snapshot. Project-scoped commands land in Phase 13a.
+        history.clear();
         canvas.setFloorPlan(project.floorPlan());
         reloadBackgroundRaster();
         canvas.fitToWindow();

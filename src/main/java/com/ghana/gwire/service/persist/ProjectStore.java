@@ -30,24 +30,62 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Load/save GhanaWire projects as JSON ({@code .gwire} files).
+ * Load/save GhanaWire projects as JSON ({@code .gwire} files) or packages ({@code .gwirez}).
  *
- * <p>Format version 1 stores geometry, devices, settings, and background path.
+ * <p>Format 1.2: multi-storey + optional package embeds. Loads 1.0 / 1.1 / 1.2.
  * Calculation reports are not persisted (re-run Tools → Recalculate Loads).
  */
 public final class ProjectStore {
 
-    /** 1.0 single floor; 1.1 multi-storey + wiring routes (still loads 1.0 files). */
-    public static final String FORMAT_VERSION = "1.1";
+    /**
+     * Current write version. 1.0 single floor; 1.1 multi-storey; 1.2 package metadata
+     * (embeddedRef / mediaHash). Always write 1.2 for new saves.
+     */
+    public static final String FORMAT_VERSION = "1.2";
     public static final String FILE_EXTENSION = "gwire";
+    public static final String PACKAGE_EXTENSION = "gwirez";
 
     private static final Logger log = LoggerFactory.getLogger(ProjectStore.class);
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
 
+    /** Save with backup rotation (user Save / Save As). */
     public void save(Project project, Path path) throws IOException {
+        save(project, path, true);
+    }
+
+    /**
+     * @param rotateBackup if true, rotates {@code .bak}/{@code .bak2} before replace
+     *                     (skip for ephemeral autosave)
+     */
+    public void save(Project project, Path path, boolean rotateBackup) throws IOException {
         Objects.requireNonNull(project, "project");
         Objects.requireNonNull(path, "path");
+        String name = path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase();
+        if (name.endsWith("." + PACKAGE_EXTENSION)) {
+            ProjectPackage.save(project, path, this);
+            return;
+        }
+        project.touch();
+        byte[] json = toJsonBytes(project);
+        Path parent = path.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        if (rotateBackup) {
+            BackupService.rotate(path);
+        }
+        AtomicFileWriter.writeAtomically(path, json);
+        log.info("Saved project '{}' to {} ({} storeys)", project.name(), path, project.storeys().size());
+    }
+
+    /** Serialize project to pretty-printed JSON bytes (formatVersion {@link #FORMAT_VERSION}). */
+    public byte[] toJsonBytes(Project project) throws IOException {
+        ObjectNode root = buildRoot(project);
+        return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(root);
+    }
+
+    ObjectNode buildRoot(Project project) {
         project.touch();
         ObjectNode root = MAPPER.createObjectNode();
         root.put("formatVersion", FORMAT_VERSION);
@@ -57,7 +95,6 @@ public final class ProjectStore {
         root.put("createdAt", project.createdAt().toString());
         root.put("modifiedAt", project.modifiedAt().toString());
         root.set("settings", writeSettings(project.settings()));
-        // Backward-compatible single floorPlan = active storey snapshot
         root.set("floorPlan", writeFloorPlan(project.floorPlan()));
         root.put("activeStoreyIndex", project.activeStoreyIndex());
         ArrayNode storeysNode = root.putArray("storeys");
@@ -68,13 +105,7 @@ public final class ProjectStore {
             sn.put("level", s.level());
             sn.set("floorPlan", writeFloorPlan(s.floorPlan()));
         }
-
-        Path parent = path.getParent();
-        if (parent != null) {
-            Files.createDirectories(parent);
-        }
-        MAPPER.writeValue(path.toFile(), root);
-        log.info("Saved project '{}' to {} ({} storeys)", project.name(), path, project.storeys().size());
+        return root;
     }
 
     public Project load(Path path) throws IOException {
@@ -82,7 +113,16 @@ public final class ProjectStore {
         if (!Files.isRegularFile(path)) {
             throw new IOException("Project file not found: " + path);
         }
+        String name = path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase();
+        if (name.endsWith("." + PACKAGE_EXTENSION)) {
+            return ProjectPackage.load(path, this);
+        }
         JsonNode root = MAPPER.readTree(path.toFile());
+        return loadFromTree(root);
+    }
+
+    /** Load from already-parsed JSON (used by package loader). */
+    public Project loadFromTree(JsonNode root) throws IOException {
         String version = text(root, "formatVersion", "1.0");
         if (!version.startsWith("1")) {
             throw new IOException("Unsupported project format version: " + version);
@@ -118,12 +158,16 @@ public final class ProjectStore {
             readFloorPlan(root.path("floorPlan"), project.floorPlan());
         }
         // lastReport is not persisted; leave null
-        log.info("Loaded project '{}' from {} ({} storeys, {} rooms, {} devices)",
-                project.name(), path,
+        log.info("Loaded project '{}' ({} storeys, {} rooms, {} devices)",
+                project.name(),
                 project.storeys().size(),
                 project.totalRoomCount(),
                 project.totalDeviceCount());
         return project;
+    }
+
+    ObjectMapper mapper() {
+        return MAPPER;
     }
 
     private ObjectNode writeSettings(ProjectSettings s) {
@@ -234,6 +278,12 @@ public final class ProjectStore {
             bn.put("originYMm", bg.originYMm());
             bn.put("mmPerPixel", bg.mmPerPixel());
             bn.put("opacity", bg.opacity());
+            if (bg.embeddedRef() != null && !bg.embeddedRef().isBlank()) {
+                bn.put("embeddedRef", bg.embeddedRef());
+            }
+            if (bg.mediaHash() != null && !bg.mediaHash().isBlank()) {
+                bn.put("mediaHash", bg.mediaHash());
+            }
         }
         return n;
     }
@@ -364,6 +414,8 @@ public final class ProjectStore {
             );
             image.setOrigin(bg.path("originXMm").asDouble(0), bg.path("originYMm").asDouble(0));
             image.setOpacity(bg.path("opacity").asDouble(0.55));
+            image.setEmbeddedRef(text(bg, "embeddedRef", null));
+            image.setMediaHash(text(bg, "mediaHash", null));
             fp.setBackground(image);
         }
     }

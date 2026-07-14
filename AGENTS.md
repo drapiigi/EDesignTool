@@ -60,7 +60,7 @@
 | 7 | PDF export & reporting | **Done** |
 | 8 | Packaging, polish, sample 3-bed house, docs | **Done** |
 | 9 | Multi-storey, wiring routes, SLD, packaging polish | **Done** |
-| 10 | Production hardening: atomic save, autosave/recovery, SecretStore, exception handler, smoke tests | **Planned** (next) |
+| 10 | Production hardening: atomic save, autosave/recovery, SecretStore, exception handler, smoke tests | **Done** |
 | 11 | Calculation integrity: golden tests, assumption flags, calc state machine, export gates | **Planned** |
 | 12 | Distribution + liability UX → **beta 0.9** (installers, disclaimers, standards stamp) | **Planned** |
 | 13a | CAD minimum for GA (OSNAP/ortho, layers, command undo, basic plot) | **Planned** |
@@ -204,9 +204,20 @@
 - Packaging polish: `package-appimage.sh`, signing notes in PACKAGING.md
 - Calc/BOQ/standards aggregate devices across all storeys
 
+### Done (Phase 10)
+
+- Atomic save (`AtomicFileWriter`) + rolling `.bak`/`.bak2`
+- Autosave (`~/.gwire/autosave/`), crash recovery, window close Save / Don’t save / Cancel
+- Format **1.2** write; optional **`.gwirez`** package with embedded media
+- SecretStore (`~/.gwire/secrets.properties` mode 0600) for AI keys
+- Uncaught exception handlers + rolling file logs under `~/.gwire/logs`
+- Clear undo history on storey switch; canvas redraw coalesce + device viewport cull
+- Service smoke test: sample → calc → PDF
+- Docs: `docs/persist/FORMAT.md`
+
 ### Open tasks / next program
 
-- **Next implement:** Phase 10 (see `docs/ROADMAP-PRODUCTION.md` PR-10.1 … PR-10.8)
+- **Next implement:** Phase 11 — calc integrity (see `docs/ROADMAP-PRODUCTION.md`)
 - Parallel: legal disclaimer copy, CEWP peer review of load tables, license choice
 - Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
 

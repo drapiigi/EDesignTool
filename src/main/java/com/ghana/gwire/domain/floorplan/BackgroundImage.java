@@ -14,6 +14,10 @@ public final class BackgroundImage {
     private double originYMm;
     private double mmPerPixel;
     private double opacity;
+    /** Optional package media entry id ({@code media/{embeddedRef}}). */
+    private String embeddedRef;
+    /** Optional SHA-256 hex of embedded bytes. */
+    private String mediaHash;
 
     public BackgroundImage(String sourcePath, String sourceLabel, double mmPerPixel) {
         this.sourcePath = Objects.requireNonNull(sourcePath);
@@ -30,6 +34,22 @@ public final class BackgroundImage {
 
     public String sourceLabel() {
         return sourceLabel;
+    }
+
+    public String embeddedRef() {
+        return embeddedRef;
+    }
+
+    public void setEmbeddedRef(String embeddedRef) {
+        this.embeddedRef = embeddedRef == null || embeddedRef.isBlank() ? null : embeddedRef.trim();
+    }
+
+    public String mediaHash() {
+        return mediaHash;
+    }
+
+    public void setMediaHash(String mediaHash) {
+        this.mediaHash = mediaHash == null || mediaHash.isBlank() ? null : mediaHash.trim();
     }
 
     public double originXMm() {
@@ -67,6 +87,8 @@ public final class BackgroundImage {
         BackgroundImage copy = new BackgroundImage(sourcePath, sourceLabel, mmPerPixel);
         copy.setOrigin(originXMm, originYMm);
         copy.setOpacity(opacity);
+        copy.setEmbeddedRef(embeddedRef);
+        copy.setMediaHash(mediaHash);
         return copy;
     }
 }

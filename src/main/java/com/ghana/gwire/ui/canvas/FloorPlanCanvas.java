@@ -29,6 +29,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.input.ZoomEvent;
+import javafx.animation.AnimationTimer;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.ArcType;
@@ -101,6 +102,19 @@ public class FloorPlanCanvas {
     private boolean spacePan;
     /** Pixel drag distance before a SELECT press becomes a device move (vs click-select). */
     private static final double MOVE_DRAG_THRESHOLD_PX = 5;
+
+    /** Coalesce multiple redraw() calls into one paint per pulse. */
+    private boolean redrawPending;
+    private final AnimationTimer redrawTimer = new AnimationTimer() {
+        @Override
+        public void handle(long now) {
+            if (redrawPending) {
+                redrawPending = false;
+                paintNow();
+            }
+            stop();
+        }
+    };
 
     public FloorPlanCanvas(FloorPlanHistory history) {
         this.history = Objects.requireNonNull(history);
@@ -363,7 +377,17 @@ public class FloorPlanCanvas {
         status("Deleted selection");
     }
 
+    /**
+     * Request a repaint. Multiple calls in the same event loop coalesce to one paint
+     * (Phase 10 performance).
+     */
     public void redraw() {
+        redrawPending = true;
+        redrawTimer.start();
+    }
+
+    /** Immediate paint (used by tests / after coalesce). */
+    public void paintNow() {
         GraphicsContext g = canvas.getGraphicsContext2D();
         double w = canvas.getWidth();
         double h = canvas.getHeight();
@@ -1385,15 +1409,24 @@ public class FloorPlanCanvas {
 
     private void drawDevices(GraphicsContext g) {
         double size = SymbolRenderer.screenSize(scale);
+        double pad = size + 8;
+        double viewW = canvas.getWidth();
+        double viewH = canvas.getHeight();
         for (PlacedDevice d : floorPlan.devices()) {
+            double sx = worldToScreenX(d.xMm());
+            double sy = worldToScreenY(d.yMm());
+            // Viewport cull — skip drawing off-screen symbols (still O(n) scan)
+            if (sx < -pad || sy < -pad || sx > viewW + pad || sy > viewH + pad) {
+                continue;
+            }
             boolean selected = selection.kind() == SelectionModel.Kind.DEVICE
                     && selection.device() != null
                     && selection.device().id().equals(d.id());
             SymbolRenderer.draw(
                     g,
                     d.symbolKey(),
-                    worldToScreenX(d.xMm()),
-                    worldToScreenY(d.yMm()),
+                    sx,
+                    sy,
                     size,
                     d.rotationDeg(),
                     selected

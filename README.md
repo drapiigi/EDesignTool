@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a design with AI, edit 
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI |
-| **Status** | Phase 9 complete · **Phases 10–16 planned** toward beta 0.9 / GA 1.0 |
+| **Status** | Phase 10 complete (production hardening) · next: Phase 11 calc integrity → beta 0.9 |
 
 See **[AGENTS.md](AGENTS.md)** for architecture and agent workflow.  
 See **[docs/PACKAGING.md](docs/PACKAGING.md)** for installers and fat-jar notes.
@@ -118,7 +118,8 @@ Details: [docs/PACKAGING.md](docs/PACKAGING.md).
 7. **Phase 7** — PDF + Excel BOQ export ✅  
 8. **Phase 8** — Packaging, sample 3-bed house, polish ✅  
 9. **Phase 9** — Multi-storey, wiring routes, SLD, packaging polish ✅  
-10. **Phases 10–16** — Production program (durability → calc trust → beta → CAD/electrical → GA) — see **[docs/ROADMAP-PRODUCTION.md](docs/ROADMAP-PRODUCTION.md)**  
+10. **Phase 10** — Atomic save, autosave/recovery, secrets store, exception handler, `.gwirez` package ✅  
+11–16. **Planned** — Calc integrity → beta packaging → CAD/electrical → GA — see **[docs/ROADMAP-PRODUCTION.md](docs/ROADMAP-PRODUCTION.md)**  
 
 ---
 

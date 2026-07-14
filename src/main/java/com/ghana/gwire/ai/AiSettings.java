@@ -1,5 +1,7 @@
 package com.ghana.gwire.ai;
 
+import com.ghana.gwire.service.persist.GwireHome;
+import com.ghana.gwire.service.security.SecretStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,8 +16,10 @@ import java.util.Properties;
 /**
  * AI / LLM configuration for GhanaWire design generation.
  *
- * <p>Load order: environment variables override {@code ~/.gwire/ai.properties}.
- * <b>Never log the full API key</b> — use {@link #maskedKey()} if a hint is required.
+ * <p>Load order: environment variables override local secrets store
+ * ({@code ~/.gwire/secrets.properties}, mode 0600), then non-secret
+ * {@code ~/.gwire/ai.properties}. <b>Never log the full API key</b> —
+ * use {@link #maskedKey()} if a hint is required.
  */
 public final class AiSettings {
 
@@ -45,12 +49,15 @@ public final class AiSettings {
     }
 
     /**
-     * Loads settings from {@code ~/.gwire/ai.properties} then applies env overrides.
+     * Loads settings: env → secrets store → ai.properties (non-secret).
      * Missing file/env is fine — returns a disabled NONE configuration.
      */
     public static AiSettings load() {
+        SecretStore secrets = new SecretStore();
+        secrets.migrateFromAiPropertiesIfNeeded();
+
         Properties props = new Properties();
-        Path file = Path.of(System.getProperty("user.home"), ".gwire", "ai.properties");
+        Path file = GwireHome.aiProperties();
         if (Files.isRegularFile(file)) {
             try (InputStream in = Files.newInputStream(file)) {
                 props.load(in);
@@ -64,7 +71,8 @@ public final class AiSettings {
                 env("GWIRE_AI_API_KEY"),
                 env("OPENAI_API_KEY"),
                 env("XAI_API_KEY"),
-                props.getProperty("apiKey")
+                secrets.getApiKey().orElse(null),
+                props.getProperty("apiKey") // legacy leftover if migration failed
         );
 
         String baseUrl = firstNonBlank(
