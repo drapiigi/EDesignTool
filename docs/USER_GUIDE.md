@@ -1,6 +1,6 @@
 # GhanaWire AI — User quick start (beta 0.9)
 
-**Version:** 0.9.0  
+**Version:** 1.0.0  
 **Standards pack:** L.I. 2008 practice tables v2026.1  
 
 This is a **preliminary design aid**. A Competent Electrical Wiring Professional (CEWP) must verify any real installation.
@@ -11,8 +11,8 @@ This is a **preliminary design aid**. A Competent Electrical Wiring Professional
 
 | Platform | Artifact |
 |----------|----------|
-| Linux | `GhanaWireAI-0.9.0-linux-x64/` (app-image) or `.tar.gz` |
-| Windows | `GhanaWireAI-0.9.0-windows-x64/` (app-image); MSI if WiX was available |
+| Linux | `GhanaWireAI-1.0.0-linux-x64/` (app-image) or `.tar.gz` |
+| Windows | `GhanaWireAI-1.0.0-windows-x64/` (app-image); MSI if WiX was available |
 | Developers | `mvn javafx:run` |
 
 See [PACKAGING.md](PACKAGING.md) for build scripts.
@@ -31,7 +31,7 @@ On first launch, accept the disclaimer and CEWP acknowledgment checkbox.
 6. **Design → AI Generate** shows ghost placements; Accept selected or use AI Chat quick actions.
 7. **Tools → Price book…** to edit catalogue unit costs (GHS) used by BOQ.
 8. **File → Export PDF Report** or **Export BOQ (Excel)**.
-9. **File → Save** (`.gwire` format **1.3**) or **Save as Package** (`.gwirez`).
+9. **File → Save** (`.gwire` format **1.4**) or **Save as Package** (`.gwirez`). Dim tool / DXF under File menu.
 
 ---
 

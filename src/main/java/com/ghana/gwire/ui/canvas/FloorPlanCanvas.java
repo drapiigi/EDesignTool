@@ -6,6 +6,7 @@ import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.floorplan.BackgroundImage;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
+import com.ghana.gwire.domain.floorplan.LinearDimension;
 import com.ghana.gwire.domain.floorplan.Opening;
 import com.ghana.gwire.domain.floorplan.OpeningType;
 import com.ghana.gwire.domain.floorplan.Room;
@@ -87,6 +88,8 @@ public class FloorPlanCanvas {
     private Vec2 wallStart;
     /** First point of two-point scale calibration. */
     private Vec2 calibrateStart;
+    /** First point of linear dimension tool. */
+    private Vec2 dimStart;
     private Vec2 dragStartWorld;
     private Vec2 roomOrigin;
     private boolean panning;
@@ -94,6 +97,16 @@ public class FloorPlanCanvas {
     private AiPreviewSession aiPreview;
     private Consumer<AiPreviewSession> aiPreviewClickListener = s -> {
     };
+
+    /** Phase 13b grip stretch */
+    private enum GripTarget {
+        WALL_START, WALL_END, ROOM_TL, ROOM_TR, ROOM_BR, ROOM_BL
+    }
+
+    private GripTarget activeGrip;
+    private Wall gripWall;
+    private Room gripRoom;
+    private boolean gripHistoryPushed;
     private double panAnchorX;
     private double panAnchorY;
     private double panOriginX;
@@ -449,6 +462,8 @@ public class FloorPlanCanvas {
             drawRooms(g);
             drawWalls(g);
             drawOpenings(g);
+            drawDimensions(g);
+            drawGrips(g);
         }
         if (cadSettings.isShowElectrical()) {
             drawWiringRoutes(g);
@@ -567,6 +582,7 @@ public class FloorPlanCanvas {
             case WINDOW -> placeOpening(world, OpeningType.WINDOW, 1200);
             case PLACE_DEVICE -> placePendingDevice(world);
             case CALIBRATE_SCALE -> onCalibrateClick(world);
+            case DIMENSION -> onDimensionClick(world);
             case PAN -> beginPan(e.getX(), e.getY());
         }
         // Ghost toggle when SELECT + preview active
@@ -604,6 +620,19 @@ public class FloorPlanCanvas {
             return;
         }
 
+        // Grip stretch (wall endpoints / room corners)
+        if (activeGrip != null) {
+            shiftOrtho = e.isShiftDown();
+            Vec2 world = constrainPoint(screenToWorld(e.getX(), e.getY()), null);
+            if (!gripHistoryPushed) {
+                pushHistory();
+                gripHistoryPushed = true;
+            }
+            applyGrip(world);
+            redraw();
+            return;
+        }
+
         // Live move placed device (does not change pan — components stay fixed relative to plan)
         if (movingDevice != null) {
             shiftOrtho = e.isShiftDown();
@@ -636,6 +665,9 @@ public class FloorPlanCanvas {
         } else if (getTool() == DrawTool.CALIBRATE_SCALE && calibrateStart != null) {
             previewEnd = world;
             redraw();
+        } else if (getTool() == DrawTool.DIMENSION && dimStart != null) {
+            previewEnd = world;
+            redraw();
         } else if (getTool() == DrawTool.ROOM && roomOrigin != null) {
             roomPreviewCorner = world;
             redraw();
@@ -650,12 +682,28 @@ public class FloorPlanCanvas {
         }
         // Click (no drag): keep selection only
         moveCandidate = null;
+        if (activeGrip != null) {
+            boolean changed = gripHistoryPushed;
+            activeGrip = null;
+            gripWall = null;
+            gripRoom = null;
+            gripHistoryPushed = false;
+            if (changed) {
+                floorPlan.notifyGeometryMutated();
+                fireModelChanged();
+                status("Grip edit applied");
+            }
+            fireSelection();
+            redraw();
+            return;
+        }
         if (movingDevice != null) {
             PlacedDevice done = movingDevice;
             boolean moved = moveHistoryRecorded;
             movingDevice = null;
             moveHistoryRecorded = false;
             if (moved) {
+                floorPlan.notifyGeometryMutated();
                 status("Moved %s to (%.0f, %.0f) mm"
                         .formatted(done.displayName(), done.xMm(), done.yMm()));
                 fireModelChanged();
@@ -684,6 +732,9 @@ public class FloorPlanCanvas {
             redraw();
         } else if (getTool() == DrawTool.CALIBRATE_SCALE && calibrateStart != null) {
             previewEnd = constrainPoint(raw, calibrateStart);
+            redraw();
+        } else if (getTool() == DrawTool.DIMENSION && dimStart != null) {
+            previewEnd = constrainPoint(raw, dimStart);
             redraw();
         } else if (cadSettings.isEndpointSnap() && getTool() != DrawTool.PAN) {
             // Update snap marker when hovering near endpoints
@@ -941,6 +992,15 @@ public class FloorPlanCanvas {
     private void beginSelectOrMove(Vec2 world, double sx, double sy) {
         movingDevice = null;
         moveCandidate = null;
+        activeGrip = null;
+        gripWall = null;
+        gripRoom = null;
+        gripHistoryPushed = false;
+
+        // Prefer grip handles on current selection
+        if (tryBeginGrip(world)) {
+            return;
+        }
 
         var device = floorPlan.hitDevice(world, devicePickTolMm());
         if (device.isPresent()) {
@@ -960,6 +1020,119 @@ public class FloorPlanCanvas {
         // Empty space (or non-device geometry click): drag pans the entire plan
         beginPan(sx, sy);
         status("Pan view · whole plan moves together");
+    }
+
+    private boolean tryBeginGrip(Vec2 world) {
+        double tol = pickTolMm(8);
+        if (selection.kind() == SelectionModel.Kind.WALL && selection.wall() != null) {
+            Wall w = selection.wall();
+            if (world.distanceTo(w.start()) <= tol) {
+                activeGrip = GripTarget.WALL_START;
+                gripWall = w;
+                status("Grip: wall start — drag to stretch");
+                return true;
+            }
+            if (world.distanceTo(w.end()) <= tol) {
+                activeGrip = GripTarget.WALL_END;
+                gripWall = w;
+                status("Grip: wall end — drag to stretch");
+                return true;
+            }
+        }
+        if (selection.kind() == SelectionModel.Kind.ROOM && selection.room() != null) {
+            Room r = selection.room();
+            Vec2 tl = new Vec2(r.x(), r.y());
+            Vec2 tr = new Vec2(r.x() + r.widthMm(), r.y());
+            Vec2 br = new Vec2(r.x() + r.widthMm(), r.y() + r.heightMm());
+            Vec2 bl = new Vec2(r.x(), r.y() + r.heightMm());
+            if (world.distanceTo(tl) <= tol) {
+                activeGrip = GripTarget.ROOM_TL;
+                gripRoom = r;
+                status("Grip: room corner — drag to resize");
+                return true;
+            }
+            if (world.distanceTo(tr) <= tol) {
+                activeGrip = GripTarget.ROOM_TR;
+                gripRoom = r;
+                status("Grip: room corner — drag to resize");
+                return true;
+            }
+            if (world.distanceTo(br) <= tol) {
+                activeGrip = GripTarget.ROOM_BR;
+                gripRoom = r;
+                status("Grip: room corner — drag to resize");
+                return true;
+            }
+            if (world.distanceTo(bl) <= tol) {
+                activeGrip = GripTarget.ROOM_BL;
+                gripRoom = r;
+                status("Grip: room corner — drag to resize");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyGrip(Vec2 world) {
+        if (activeGrip == null) {
+            return;
+        }
+        switch (activeGrip) {
+            case WALL_START -> {
+                if (gripWall != null) {
+                    gripWall.setStart(world);
+                    floorPlan.notifyGeometryMutated();
+                }
+            }
+            case WALL_END -> {
+                if (gripWall != null) {
+                    gripWall.setEnd(world);
+                    floorPlan.notifyGeometryMutated();
+                }
+            }
+            case ROOM_TL -> resizeRoomFromCorner(gripRoom, world, true, true);
+            case ROOM_TR -> resizeRoomFromCorner(gripRoom, world, false, true);
+            case ROOM_BR -> resizeRoomFromCorner(gripRoom, world, false, false);
+            case ROOM_BL -> resizeRoomFromCorner(gripRoom, world, true, false);
+        }
+    }
+
+    private void resizeRoomFromCorner(Room r, Vec2 world, boolean left, boolean top) {
+        if (r == null) {
+            return;
+        }
+        double x1 = left ? world.x() : r.x();
+        double y1 = top ? world.y() : r.y();
+        double x2 = left ? r.x() + r.widthMm() : world.x();
+        double y2 = top ? r.y() + r.heightMm() : world.y();
+        double nx = Math.min(x1, x2);
+        double ny = Math.min(y1, y2);
+        double nw = Math.max(100, Math.abs(x2 - x1));
+        double nh = Math.max(100, Math.abs(y2 - y1));
+        r.setBounds(nx, ny, nw, nh);
+    }
+
+    private void onDimensionClick(Vec2 world) {
+        if (dimStart == null) {
+            dimStart = world;
+            previewEnd = world;
+            status("Dimension: click second point");
+            return;
+        }
+        if (dimStart.distanceTo(world) < 50) {
+            status("Dimension too short");
+            dimStart = null;
+            previewEnd = null;
+            return;
+        }
+        pushHistory();
+        LinearDimension dim = new LinearDimension(dimStart, world);
+        floorPlan.addDimension(dim);
+        dimStart = null;
+        previewEnd = null;
+        fireModelChanged();
+        status("Dimension added · " + dim.displayLabel());
+        redraw();
     }
 
     private void selectAt(Vec2 world) {
@@ -1135,6 +1308,7 @@ public class FloorPlanCanvas {
     private void cancelInProgress() {
         wallStart = null;
         calibrateStart = null;
+        dimStart = null;
         previewEnd = null;
         roomOrigin = null;
         roomPreviewCorner = null;
@@ -1142,6 +1316,10 @@ public class FloorPlanCanvas {
         movingDevice = null;
         moveCandidate = null;
         moveHistoryRecorded = false;
+        activeGrip = null;
+        gripWall = null;
+        gripRoom = null;
+        gripHistoryPushed = false;
         if (getTool() != DrawTool.PLACE_DEVICE) {
             pendingComponent = null;
         }
@@ -1826,6 +2004,73 @@ public class FloorPlanCanvas {
                     selected
             );
         }
+    }
+
+    private void drawDimensions(GraphicsContext g) {
+        for (LinearDimension dim : floorPlan.dimensions()) {
+            drawOneDimension(g, dim.p1(), dim.p2(), dim.offsetMm(), dim.displayLabel());
+        }
+        if (getTool() == DrawTool.DIMENSION && dimStart != null && previewEnd != null) {
+            drawOneDimension(g, dimStart, previewEnd, 400,
+                    String.format(java.util.Locale.ROOT, "%.0f mm", dimStart.distanceTo(previewEnd)));
+        }
+    }
+
+    private void drawOneDimension(GraphicsContext g, Vec2 a, Vec2 b, double offsetMm, String label) {
+        Vec2 dir = b.subtract(a);
+        if (dir.length() < 1e-3) {
+            return;
+        }
+        Vec2 n = dir.perpendicular();
+        Vec2 o = n.scale(offsetMm);
+        Vec2 a1 = a.add(o);
+        Vec2 b1 = b.add(o);
+        g.setStroke(Color.web("#88ccee"));
+        g.setLineWidth(1.2);
+        g.strokeLine(worldToScreenX(a.x()), worldToScreenY(a.y()),
+                worldToScreenX(a1.x()), worldToScreenY(a1.y()));
+        g.strokeLine(worldToScreenX(b.x()), worldToScreenY(b.y()),
+                worldToScreenX(b1.x()), worldToScreenY(b1.y()));
+        g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
+                worldToScreenX(b1.x()), worldToScreenY(b1.y()));
+        // Arrow ticks
+        double tick = 80;
+        Vec2 tDir = dir.normalize().scale(tick);
+        g.strokeLine(worldToScreenX(a1.x()), worldToScreenY(a1.y()),
+                worldToScreenX(a1.add(tDir).x()), worldToScreenY(a1.add(tDir).y()));
+        g.strokeLine(worldToScreenX(b1.x()), worldToScreenY(b1.y()),
+                worldToScreenX(b1.subtract(tDir).x()), worldToScreenY(b1.subtract(tDir).y()));
+        Vec2 mid = a1.lerp(b1, 0.5);
+        g.setFill(Color.web("#88ccee"));
+        g.setFont(CadStyle.labelFont(Math.clamp(11 * (scale / 0.06), 9, 14)));
+        g.setTextAlign(TextAlignment.CENTER);
+        g.fillText(label, worldToScreenX(mid.x()), worldToScreenY(mid.y()) - 4);
+        g.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private void drawGrips(GraphicsContext g) {
+        double r = Math.max(4, 6);
+        g.setFill(Color.web("#00ffcc"));
+        g.setStroke(Color.web("#003322"));
+        g.setLineWidth(1);
+        if (selection.kind() == SelectionModel.Kind.WALL && selection.wall() != null) {
+            Wall w = selection.wall();
+            gripSquare(g, w.start(), r);
+            gripSquare(g, w.end(), r);
+        } else if (selection.kind() == SelectionModel.Kind.ROOM && selection.room() != null) {
+            Room room = selection.room();
+            gripSquare(g, new Vec2(room.x(), room.y()), r);
+            gripSquare(g, new Vec2(room.x() + room.widthMm(), room.y()), r);
+            gripSquare(g, new Vec2(room.x() + room.widthMm(), room.y() + room.heightMm()), r);
+            gripSquare(g, new Vec2(room.x(), room.y() + room.heightMm()), r);
+        }
+    }
+
+    private void gripSquare(GraphicsContext g, Vec2 world, double r) {
+        double sx = worldToScreenX(world.x());
+        double sy = worldToScreenY(world.y());
+        g.fillRect(sx - r, sy - r, r * 2, r * 2);
+        g.strokeRect(sx - r, sy - r, r * 2, r * 2);
     }
 
     private void drawHud(GraphicsContext g, double w, double h) {

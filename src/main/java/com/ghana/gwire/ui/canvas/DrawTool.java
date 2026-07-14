@@ -12,7 +12,9 @@ public enum DrawTool {
     /**
      * Two-point background scale calibration: click known segment endpoints, enter real length.
      */
-    CALIBRATE_SCALE("Scale");
+    CALIBRATE_SCALE("Scale"),
+    /** Linear dimension between two points (Phase 13b). */
+    DIMENSION("Dim");
 
     private final String label;
 

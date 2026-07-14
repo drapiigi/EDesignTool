@@ -7,9 +7,10 @@
 | **1.0** | Single floor plan (rooms, walls, openings, devices, background path) |
 | **1.1** | Multi-storey + wiring routes |
 | **1.2** | Package embeds (`embeddedRef`, `mediaHash`) for `.gwirez` |
-| **1.3** | **Current write version:** first-class circuits, consumer unit, checklist, device `circuitId` + `mountingHeightMm` |
+| **1.3** | First-class circuits, consumer unit, checklist, device `circuitId` + `mountingHeightMm` |
+| **1.4** | **Current write version:** linear dimensions (`dimensions[]` on each floor plan) |
 
-Loaders accept any `1.*` file. **All new saves write `formatVersion: 1.3`.**
+Loaders accept any `1.*` file. **All new saves write `formatVersion: 1.4`.**
 
 ## Extensions
 

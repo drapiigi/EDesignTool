@@ -226,7 +226,7 @@
 
 ### Done (Phase 12) — beta 0.9
 
-- Version **0.9.0**; `LICENSE` beta notice; `docs/USER_GUIDE.md`
+- Version **0.9.0** beta (superseded by **1.0.0** GA); `LICENSE`; `docs/USER_GUIDE.md`
 - First-run disclaimer + CEWP checkbox + unsigned beta notice (`FirstRunDialog`)
 - Update check (`UpdateCheckService` + `docs/release/version.json`)
 - Packaging scripts: versioned artifacts, optional deb/MSI, WiX notes
@@ -261,12 +261,27 @@
 - Keyboard cheat sheet (`docs/KEYBOARD.md` + Help menu)
 - Telemetry opt-in default OFF (`TelemetryService` — no floor plans)
 - `SecretStore` interface + `FileSecretStore` + stub `KeyringSecretStore`
+- UI declutter: right dock tabs + dedicated **AI Chat** panel
+
+### Done (Phase 13b)
+
+- Grips on wall endpoints and room corners (SELECT + drag)
+- Linear dimensions (`LinearDimension`, Dim tool, format 1.4)
+- DXF import (LINE/LWPOLYLINE → walls) and export (walls/rooms)
+
+### Done (Phase 16 — GA 1.0)
+
+- `SpatialIndex` for device/wall hit-testing at scale
+- Domain package boundaries documented (`docs/ARCHITECTURE.md`, `package-info`)
+- Semver **1.0.0**; `docs/GA-CHECKLIST.md`; CI package example
+- Format **1.4** write path
 
 ### Open tasks / next program
 
-- **Next implement:** Phase 16 — scale architecture & GA 1.0 (or 13b CAD stretch)
-- Parallel: CEWP peer review of load tables; code signing for production
-- Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
+- **Phases 10–16 complete (GA 1.0.0)**
+- Parallel: CEWP peer review of load tables; code signing for production installers
+- Post-1.0: full OSNAP set, paper-space layouts, cloud multi-user (explicit non-goals until planned)
+- Explicit non-goals: full AutoCAD clone, 3D BIM, industrial plant design
 
 ---
 

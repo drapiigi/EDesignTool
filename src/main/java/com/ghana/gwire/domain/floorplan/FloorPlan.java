@@ -2,6 +2,7 @@ package com.ghana.gwire.domain.floorplan;
 
 import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.geometry.Segment2;
+import com.ghana.gwire.domain.geometry.SpatialIndex;
 import com.ghana.gwire.domain.geometry.Vec2;
 
 import java.util.ArrayList;
@@ -20,10 +21,14 @@ public final class FloorPlan {
     private final List<Opening> openings = new ArrayList<>();
     private final List<PlacedDevice> devices = new ArrayList<>();
     private final List<WiringRoute> wiringRoutes = new ArrayList<>();
+    private final List<LinearDimension> dimensions = new ArrayList<>();
     private BackgroundImage background;
     private double gridMm = 500;
     private boolean snapToGrid = true;
     private boolean showWiringRoutes = true;
+    private transient SpatialIndex deviceIndex;
+    private transient SpatialIndex wallIndex;
+    private transient boolean indexDirty = true;
 
     public List<Wall> walls() {
         return Collections.unmodifiableList(walls);
@@ -45,8 +50,27 @@ public final class FloorPlan {
         return Collections.unmodifiableList(wiringRoutes);
     }
 
+    public List<LinearDimension> dimensions() {
+        return Collections.unmodifiableList(dimensions);
+    }
+
     public boolean isShowWiringRoutes() {
         return showWiringRoutes;
+    }
+
+    private void markIndexDirty() {
+        indexDirty = true;
+        deviceIndex = null;
+        wallIndex = null;
+    }
+
+    private void ensureIndexes() {
+        if (!indexDirty && deviceIndex != null && wallIndex != null) {
+            return;
+        }
+        deviceIndex = SpatialIndex.forDevices(devices);
+        wallIndex = SpatialIndex.forWalls(walls);
+        indexDirty = false;
     }
 
     public void setShowWiringRoutes(boolean showWiringRoutes) {
@@ -87,6 +111,7 @@ public final class FloorPlan {
 
     public void addWall(Wall wall) {
         walls.add(wall);
+        markIndexDirty();
     }
 
     public void addRoom(Room room) {
@@ -99,12 +124,23 @@ public final class FloorPlan {
 
     public void addDevice(PlacedDevice device) {
         devices.add(device);
+        markIndexDirty();
     }
 
     public void addWiringRoute(WiringRoute route) {
         if (route != null) {
             wiringRoutes.add(route);
         }
+    }
+
+    public void addDimension(LinearDimension dim) {
+        if (dim != null) {
+            dimensions.add(dim);
+        }
+    }
+
+    public boolean removeDimensionById(String id) {
+        return dimensions.removeIf(d -> d.id().equals(id));
     }
 
     public void clearWiringRoutes() {
@@ -122,7 +158,11 @@ public final class FloorPlan {
 
     public boolean removeWallById(String id) {
         openings.removeIf(o -> o.wallId().equals(id));
-        return walls.removeIf(w -> w.id().equals(id));
+        boolean ok = walls.removeIf(w -> w.id().equals(id));
+        if (ok) {
+            markIndexDirty();
+        }
+        return ok;
     }
 
     public boolean removeRoomById(String id) {
@@ -134,7 +174,11 @@ public final class FloorPlan {
     }
 
     public boolean removeDeviceById(String id) {
-        return devices.removeIf(d -> d.id().equals(id));
+        boolean ok = devices.removeIf(d -> d.id().equals(id));
+        if (ok) {
+            markIndexDirty();
+        }
+        return ok;
     }
 
     public Optional<Wall> findWall(String id) {
@@ -159,12 +203,15 @@ public final class FloorPlan {
         openings.clear();
         devices.clear();
         wiringRoutes.clear();
+        dimensions.clear();
+        markIndexDirty();
     }
 
     /** Removes all placed devices; rooms, walls, and openings are kept. */
     public void clearDevices() {
         devices.clear();
         wiringRoutes.clear();
+        markIndexDirty();
     }
 
     /** Clears rooms, walls, and openings; keeps devices and background. */
@@ -172,6 +219,7 @@ public final class FloorPlan {
         walls.clear();
         rooms.clear();
         openings.clear();
+        markIndexDirty();
     }
 
     public void clearAll() {
@@ -181,8 +229,13 @@ public final class FloorPlan {
 
     /**
      * Hit-test walls within {@code toleranceMm}; returns nearest if any.
+     * Uses a spatial index when wall count is large (Phase 16).
      */
     public Optional<Wall> hitWall(Vec2 p, double toleranceMm) {
+        if (walls.size() >= SpatialIndex.DEVICE_INDEX_THRESHOLD) {
+            ensureIndexes();
+            return wallIndex.nearestWall(p, toleranceMm);
+        }
         Wall best = null;
         double bestDist = toleranceMm;
         for (Wall w : walls) {
@@ -227,8 +280,13 @@ public final class FloorPlan {
 
     /**
      * Hit-test placed devices within {@code radiusMm}; returns nearest if any.
+     * Uses a spatial index when device count ≥ {@link SpatialIndex#DEVICE_INDEX_THRESHOLD}.
      */
     public Optional<PlacedDevice> hitDevice(Vec2 p, double radiusMm) {
+        if (devices.size() >= SpatialIndex.DEVICE_INDEX_THRESHOLD) {
+            ensureIndexes();
+            return deviceIndex.nearestDevice(p, radiusMm);
+        }
         PlacedDevice best = null;
         double bestDist = radiusMm;
         for (PlacedDevice d : devices) {
@@ -239,6 +297,11 @@ public final class FloorPlan {
             }
         }
         return Optional.ofNullable(best);
+    }
+
+    /** Call after bulk in-place geometry edits (grip stretch) so indexes rebuild. */
+    public void notifyGeometryMutated() {
+        markIndexDirty();
     }
 
     public FloorPlan deepCopy() {
@@ -261,6 +324,9 @@ public final class FloorPlan {
         for (WiringRoute wr : wiringRoutes) {
             copy.wiringRoutes.add(wr.copy());
         }
+        for (LinearDimension dim : dimensions) {
+            copy.dimensions.add(dim.copy());
+        }
         if (background != null) {
             copy.background = background.copy();
         }
@@ -273,6 +339,8 @@ public final class FloorPlan {
         openings.clear();
         devices.clear();
         wiringRoutes.clear();
+        dimensions.clear();
+        markIndexDirty();
         gridMm = other.gridMm;
         snapToGrid = other.snapToGrid;
         showWiringRoutes = other.showWiringRoutes;
@@ -290,6 +358,9 @@ public final class FloorPlan {
         }
         for (WiringRoute wr : other.wiringRoutes) {
             wiringRoutes.add(wr.copy());
+        }
+        for (LinearDimension dim : other.dimensions) {
+            dimensions.add(dim.copy());
         }
         background = other.background == null ? null : other.background.copy();
     }

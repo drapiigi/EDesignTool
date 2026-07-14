@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a design with AI, edit 
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI |
-| **Status** | **Beta 0.9.0** + Phases 13a–15 (CAD, electrical model 1.3, templates/price book/AI preview) · next: Phase 16 GA |
+| **Status** | **GA 1.0.0** — Phases 10–16 complete (CAD, electrical model, AI chat, DXF, spatial index) |
 
 See **[AGENTS.md](AGENTS.md)** for architecture and agent workflow.  
 See **[docs/PACKAGING.md](docs/PACKAGING.md)** for installers and fat-jar notes.

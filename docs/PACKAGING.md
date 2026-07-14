@@ -5,12 +5,12 @@
 | Platform | Path |
 |----------|------|
 | Linux app-image | `target/dist/linux/GhanaWireAI/` |
-| Linux versioned | `target/dist/linux/GhanaWireAI-0.9.0-linux-x64/` |
+| Linux versioned | `target/dist/linux/GhanaWireAI-1.0.0-linux-x64/` |
 | Linux tarball | `target/dist/linux/GhanaWireAI-linux-x64.tar.gz` |
 | Linux .deb | `target/dist/linux/*.deb` (**best-effort**) |
 | Windows app-image | `target/dist/windows/GhanaWireAI/` |
-| Windows versioned | `target/dist/windows/GhanaWireAI-0.9.0-windows-x64/` |
-| Windows MSI | `target/dist/windows/GhanaWireAI-0.9.0.msi` (**best-effort**, needs WiX) |
+| Windows versioned | `target/dist/windows/GhanaWireAI-1.0.0-windows-x64/` |
+| Windows MSI | `target/dist/windows/GhanaWireAI-1.0.0.msi` (**best-effort**, needs WiX) |
 
 Beta gate: **Linux app-image required**. Deb/MSI optional.
 
@@ -26,7 +26,7 @@ mvn javafx:run
 
 ```bash
 mvn -DskipTests package
-java --enable-native-access=ALL-UNNAMED -jar target/gwire-designer-0.9.0.jar
+java --enable-native-access=ALL-UNNAMED -jar target/gwire-designer-1.0.0.jar
 ```
 
 > JavaFX natives are platform-specific. Prefer `mvn javafx:run` for development and jpackage for end users.

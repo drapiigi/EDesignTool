@@ -60,7 +60,7 @@ class ProjectPackageTest {
         assertNotNull(loaded.floorPlan().background().embeddedRef());
         Path cachePath = Path.of(loaded.floorPlan().background().sourcePath());
         assertTrue(Files.isRegularFile(cachePath), "cache media should exist after package load");
-        assertEquals("1.3", ProjectStore.FORMAT_VERSION);
+        assertEquals("1.4", ProjectStore.FORMAT_VERSION);
     }
 
     @Test

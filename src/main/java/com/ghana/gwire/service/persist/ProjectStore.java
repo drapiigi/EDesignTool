@@ -12,6 +12,7 @@ import com.ghana.gwire.domain.electrical.Circuit;
 import com.ghana.gwire.domain.electrical.ConsumerUnit;
 import com.ghana.gwire.domain.floorplan.BackgroundImage;
 import com.ghana.gwire.domain.floorplan.FloorPlan;
+import com.ghana.gwire.domain.floorplan.LinearDimension;
 import com.ghana.gwire.domain.floorplan.Opening;
 import com.ghana.gwire.domain.floorplan.OpeningType;
 import com.ghana.gwire.domain.floorplan.Room;
@@ -36,17 +37,16 @@ import java.util.Objects;
 /**
  * Load/save GhanaWire projects as JSON ({@code .gwire} files) or packages ({@code .gwirez}).
  *
- * <p>Format 1.3: first-class circuits, consumer unit, checklist, device heights.
- * Loads 1.0 / 1.1 / 1.2 / 1.3. Calculation reports are not persisted
- * (re-run Tools → Recalculate Loads).
+ * <p>Format 1.4: linear dimensions (13b). Loads 1.0–1.4.
+ * Calculation reports are not persisted (re-run Tools → Recalculate Loads).
  */
 public final class ProjectStore {
 
     /**
      * Current write version. 1.0 single floor; 1.1 multi-storey; 1.2 package metadata;
-     * 1.3 first-class circuits / consumer unit / checklist.
+     * 1.3 first-class circuits / consumer unit / checklist; 1.4 linear dimensions (13b).
      */
-    public static final String FORMAT_VERSION = "1.3";
+    public static final String FORMAT_VERSION = "1.4";
     public static final String FILE_EXTENSION = "gwire";
     public static final String PACKAGE_EXTENSION = "gwirez";
 
@@ -293,6 +293,20 @@ public final class ProjectStore {
             }
         }
 
+        ArrayNode dims = n.putArray("dimensions");
+        for (LinearDimension d : fp.dimensions()) {
+            ObjectNode dn = dims.addObject();
+            dn.put("id", d.id());
+            dn.put("x1", d.p1().x());
+            dn.put("y1", d.p1().y());
+            dn.put("x2", d.p2().x());
+            dn.put("y2", d.p2().y());
+            dn.put("offsetMm", d.offsetMm());
+            if (d.labelOverride() != null && !d.labelOverride().isBlank()) {
+                dn.put("labelOverride", d.labelOverride());
+            }
+        }
+
         if (fp.background() != null) {
             BackgroundImage bg = fp.background();
             ObjectNode bn = n.putObject("background");
@@ -431,6 +445,22 @@ public final class ProjectStore {
                         pts
                 );
                 fp.addWiringRoute(wr);
+            }
+        }
+
+        JsonNode dims = n.path("dimensions");
+        if (dims.isArray()) {
+            for (JsonNode d : dims) {
+                Vec2 p1 = new Vec2(d.path("x1").asDouble(), d.path("y1").asDouble());
+                Vec2 p2 = new Vec2(d.path("x2").asDouble(), d.path("y2").asDouble());
+                LinearDimension dim = new LinearDimension(
+                        text(d, "id", null),
+                        p1,
+                        p2,
+                        d.path("offsetMm").asDouble(400),
+                        text(d, "labelOverride", null)
+                );
+                fp.addDimension(dim);
             }
         }
 

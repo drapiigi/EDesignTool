@@ -23,8 +23,8 @@ public class GWireApp extends Application {
 
     public static final String APP_NAME = "GhanaWire AI";
     public static final String APP_SHORT_NAME = "G-Wire Designer";
-    /** Beta release line (Phase 12). */
-    public static final String APP_VERSION = "0.9.0";
+    /** GA release line (Phase 16). */
+    public static final String APP_VERSION = "1.0.0";
 
     private MainWindow mainWindow;
 

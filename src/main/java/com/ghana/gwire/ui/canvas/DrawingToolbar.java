@@ -44,7 +44,7 @@ public class DrawingToolbar {
         // Primary tools only — Place is drag-from-library; Scale is a toolbar action
         DrawTool[] primary = {
                 DrawTool.SELECT, DrawTool.PAN, DrawTool.WALL, DrawTool.ROOM,
-                DrawTool.DOOR, DrawTool.WINDOW
+                DrawTool.DOOR, DrawTool.WINDOW, DrawTool.DIMENSION
         };
         for (DrawTool tool : primary) {
             ToggleButton btn = new ToggleButton(tool.label());
@@ -185,6 +185,7 @@ public class DrawingToolbar {
             case WINDOW -> "Place window on a wall";
             case PLACE_DEVICE -> "Legacy place mode — prefer drag from symbol library";
             case CALIBRATE_SCALE -> "Calibrate background scale: click two points of a known length, enter real size";
+            case DIMENSION -> "Linear dimension: click start, click end — length annotated in mm/m";
         };
     }
 }

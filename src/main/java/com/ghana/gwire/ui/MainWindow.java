@@ -10,6 +10,8 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.cad.CadCommandParser;
+import com.ghana.gwire.service.cad.DxfExportService;
+import com.ghana.gwire.service.cad.DxfImportService;
 import com.ghana.gwire.service.calc.CalcEngine;
 import com.ghana.gwire.service.calc.CalcSessionState;
 import com.ghana.gwire.service.prefs.UserPrefs;
@@ -93,6 +95,8 @@ public class MainWindow {
     private final BoqExcelExportService boqExcelExportService = new BoqExcelExportService();
     private final WiringRouteService wiringRouteService = new WiringRouteService();
     private final SingleLineDiagramBuilder sldBuilder = new SingleLineDiagramBuilder();
+    private final DxfExportService dxfExportService = new DxfExportService();
+    private final DxfImportService dxfImportService = new DxfImportService();
     private Timeline autosaveTimeline;
 
     private Project project;
@@ -1335,6 +1339,67 @@ public class MainWindow {
         PriceBookDialog.show(stage);
         boqPanel.refresh();
         symbolLibraryPanel.reload();
+    }
+
+    public void exportDxf() {
+        if (project == null) {
+            statusBar.setMessage("No project to export.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export DXF geometry");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("DXF (*.dxf)", "*.dxf"));
+        chooser.setInitialFileName(sanitizeFileName(project.name()) + ".dxf");
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) {
+            return;
+        }
+        Path path = file.toPath();
+        if (!path.getFileName().toString().toLowerCase().endsWith(".dxf")) {
+            path = path.resolveSibling(path.getFileName().toString() + ".dxf");
+        }
+        try {
+            dxfExportService.export(project, path);
+            statusBar.setMessage("Exported DXF: " + path.getFileName());
+        } catch (Exception ex) {
+            log.error("DXF export failed", ex);
+            ErrorDialog.show(stage, "Could not export DXF", ex);
+        }
+    }
+
+    public void importDxf() {
+        if (project == null) {
+            statusBar.setMessage("No project for DXF import.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import DXF walls");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("DXF (*.dxf)", "*.dxf"));
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) {
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.initOwner(stage);
+        confirm.setTitle("Import DXF");
+        confirm.setHeaderText("Import LINE / LWPOLYLINE as walls?");
+        confirm.setContentText("Yes = replace existing walls on the active floor.\nNo = append walls.\nCancel = abort.");
+        confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+        var choice = confirm.showAndWait();
+        if (choice.isEmpty() || choice.get() == ButtonType.CANCEL) {
+            return;
+        }
+        boolean clear = choice.get() == ButtonType.YES;
+        try {
+            workspace.getHistory().push(project.floorPlan());
+            int n = dxfImportService.importWalls(project, file.toPath(), clear);
+            workspace.getCanvas().redraw();
+            onModelChanged();
+            statusBar.setMessage("DXF import: " + n + " wall segment(s)");
+        } catch (Exception ex) {
+            log.error("DXF import failed", ex);
+            ErrorDialog.show(stage, "Could not import DXF", ex);
+        }
     }
 
     public void toggleTelemetryOptIn() {

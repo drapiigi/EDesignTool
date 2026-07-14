@@ -50,9 +50,10 @@ class ProjectStoreFormat13Test {
         store.save(original, file);
 
         String json = Files.readString(file);
-        assertTrue(json.contains("\"formatVersion\" : \"1.3\"")
-                || json.contains("\"formatVersion\": \"1.3\"")
-                || json.contains("\"formatVersion\": \"1.3\""));
+        String v = ProjectStore.FORMAT_VERSION;
+        assertTrue(json.contains("\"formatVersion\" : \"" + v + "\"")
+                || json.contains("\"formatVersion\": \"" + v + "\"")
+                || json.contains("\"formatVersion\":\"" + v + "\""));
         assertTrue(json.contains("circuits"));
         assertTrue(json.contains("consumerUnit"));
         assertTrue(json.contains("checklistReview"));
@@ -116,10 +117,10 @@ class ProjectStoreFormat13Test {
         Project loaded = new ProjectStore().load(file);
         assertEquals("Legacy", loaded.name());
         assertTrue(loaded.circuits().isEmpty());
-        // save upgrades to 1.3
+        // save upgrades to current format version
         Path out = temp.resolve("upgraded.gwire");
         new ProjectStore().save(loaded, out);
         String saved = Files.readString(out);
-        assertTrue(saved.contains("1.3"));
+        assertTrue(saved.contains(ProjectStore.FORMAT_VERSION));
     }
 }

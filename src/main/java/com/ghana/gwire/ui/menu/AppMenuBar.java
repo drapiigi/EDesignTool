@@ -33,15 +33,19 @@ public class AppMenuBar {
         MenuItem saveAsItem = item("Save _As…", null, false, window::saveProjectAs);
         MenuItem savePackageItem = item("Save as _Package…", null, false, window::saveProjectAsPackage);
         MenuItem importItem = item("_Import Floor Plan…", KeyCode.I, true, window::importFloorPlan);
+        MenuItem importDxf = item("Import D_XF walls…", null, false, window::importDxf);
         MenuItem exportPdf = item("_Export PDF Report…", KeyCode.E, true, window::exportPdfReport);
         MenuItem exportBoqExcel = item("Export _BOQ (Excel)…", null, false, window::exportBoqExcel);
+        MenuItem exportDxf = item("Export D_XF geometry…", null, false, window::exportDxf);
         MenuItem exitItem = item("E_xit", KeyCode.Q, true, window::quit);
         file.getItems().addAll(
                 newItem, templateMenu, openItem, saveItem, saveAsItem, savePackageItem,
                 new SeparatorMenuItem(),
                 importItem,
+                importDxf,
                 exportPdf,
                 exportBoqExcel,
+                exportDxf,
                 new SeparatorMenuItem(),
                 exitItem
         );
@@ -111,6 +115,7 @@ public class AppMenuBar {
                 item("Tool: _Room", null, false, () -> window.setTool(DrawTool.ROOM)),
                 item("Tool: _Door", null, false, () -> window.setTool(DrawTool.DOOR)),
                 item("Tool: Windo_w", null, false, () -> window.setTool(DrawTool.WINDOW)),
+                item("Tool: Di_mension", null, false, () -> window.setTool(DrawTool.DIMENSION)),
                 item("Tool: _Pan", null, false, () -> window.setTool(DrawTool.PAN)),
                 new SeparatorMenuItem(),
                 item("Reload symbol _library", null, false, window::showComponentLibrary)
