@@ -78,7 +78,7 @@ public final class SingleLineDiagramBuilder {
             SingleLineDiagram.Node load = new SingleLineDiagram.Node(
                     SingleLineDiagram.NodeKind.LOAD,
                     c.name(),
-                    String.format(Locale.ROOT, "%.0f W · %.1f A · %s · Vd %.2f%%",
+                    String.format(Locale.ROOT, "%.0f W | %.1f A | %s | Vd %.2f%%",
                             c.connectedLoadW(), c.designCurrentA(), cable, c.voltageDropPercent())
             );
             mcb.add(load);
@@ -94,10 +94,10 @@ public final class SingleLineDiagramBuilder {
 
         String notes = "Schematic SLD for preliminary design only. Not a certified single-line drawing. "
                 + "Verify with a CEWP. Storeys: " + project.storeys().size()
-                + " · Devices: " + project.totalDeviceCount();
+                + " | Devices: " + project.totalDeviceCount();
 
         return new SingleLineDiagram(
-                "Single-line diagram — " + project.name(),
+                "Single-line diagram - " + project.name(),
                 root,
                 notes
         );

@@ -123,7 +123,7 @@ public final class CircuitBuilder {
         for (Map.Entry<String, List<PlacedDevice>> e : lightingByRoom.entrySet()) {
             String roomId = e.getKey().isEmpty() ? null : e.getKey();
             String roomName = roomName(roomsById, roomId);
-            CircuitLoad cl = new CircuitLoad("Lighting – " + roomName, CircuitKind.LIGHTING);
+            CircuitLoad cl = new CircuitLoad("Lighting - " + roomName, CircuitKind.LIGHTING);
             cl.setRoomId(roomId);
             double power = 0;
             List<String> ids = new ArrayList<>();
@@ -161,7 +161,7 @@ public final class CircuitBuilder {
         for (Map.Entry<String, List<PlacedDevice>> e : socketsByRoom.entrySet()) {
             String roomId = e.getKey().isEmpty() ? null : e.getKey();
             String roomName = roomName(roomsById, roomId);
-            CircuitLoad cl = new CircuitLoad("Sockets – " + roomName, CircuitKind.SOCKET);
+            CircuitLoad cl = new CircuitLoad("Sockets - " + roomName, CircuitKind.SOCKET);
             cl.setRoomId(roomId);
             double power = 0;
             List<String> ids = new ArrayList<>();
@@ -196,7 +196,7 @@ public final class CircuitBuilder {
 
         for (Map.Entry<ComponentCategory, List<PlacedDevice>> e : byCat.entrySet()) {
             CircuitKind kind = mapCategoryToKind(e.getKey());
-            CircuitLoad cl = new CircuitLoad("Other – " + e.getKey().name(), kind);
+            CircuitLoad cl = new CircuitLoad("Other - " + e.getKey().name(), kind);
             double power = 0;
             List<String> ids = new ArrayList<>();
             List<Vec2> positions = new ArrayList<>();
@@ -290,13 +290,13 @@ public final class CircuitBuilder {
             default -> "Special";
         };
         if (roomName != null && !roomName.isBlank() && !"Unassigned".equals(roomName)) {
-            return base + " – " + roomName;
+            return base + " - " + roomName;
         }
         if (c != null) {
-            return base + " – " + c.name();
+            return base + " - " + c.name();
         }
         if (d != null) {
-            return base + " – " + d.displayName();
+            return base + " - " + d.displayName();
         }
         return base;
     }

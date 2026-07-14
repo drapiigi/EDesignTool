@@ -41,7 +41,7 @@ public final class CalcEngine {
         report.setProjectName(project.name());
         report.setCalculatedAt(Instant.now());
         report.setSupplyVoltageV(project.settings().nominalVoltageV());
-        report.setSupplyTypeSummary(project.supplySummary() + " · " + project.settings().supplyType());
+        report.setSupplyTypeSummary(project.supplySummary() + " | " + project.settings().supplyType());
         report.setStandardsEdition(project.settings().standardsEdition());
 
         Map<String, ElectricalComponent> catalogue = loadCatalogue(library);
@@ -168,7 +168,7 @@ public final class CalcEngine {
         report.setProjectName(project.name());
         report.setCalculatedAt(Instant.now());
         report.setSupplyVoltageV(project.settings().nominalVoltageV());
-        report.setSupplyTypeSummary(project.supplySummary() + " · " + project.settings().supplyType());
+        report.setSupplyTypeSummary(project.supplySummary() + " | " + project.settings().supplyType());
         report.setStandardsEdition(project.settings().standardsEdition());
 
         List<ElectricalComponent> cables = map.values().stream()

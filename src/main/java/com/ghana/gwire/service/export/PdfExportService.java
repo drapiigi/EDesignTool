@@ -27,7 +27,9 @@ import org.slf4j.LoggerFactory;
 import java.awt.Color;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -47,6 +49,9 @@ public final class PdfExportService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfExportService.class);
     private static final float MARGIN = 48f;
+    /** Baseline skip for body text (10 pt + leading) — keeps lines from overlapping. */
+    private static final float BODY_LEADING = 14f;
+    private static final float SMALL_LEADING = 11f;
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final CalcEngine calcEngine = new CalcEngine();
@@ -92,53 +97,60 @@ public final class PdfExportService {
         doc.addPage(page);
         try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
             float y = page.getMediaBox().getHeight() - MARGIN;
-            y = title(cs, "GhanaWire AI — Design Report", y);
-            y = heading(cs, project.name(), y - 12);
-            y = line(cs, "Generated: " + LocalDateTime.now().format(TS), y - 8);
-            y = line(cs, "Supply: " + project.supplySummary(), y - 4);
-            y = line(cs, "House type: " + project.settings().houseType(), y - 4);
-            y = line(cs, "Standards pack: " + (report.standardsEdition().isBlank()
-                    ? project.settings().standardsEdition() : report.standardsEdition())
-                    + " · app " + com.ghana.gwire.GWireApp.APP_VERSION, y - 4);
+            y = title(cs, "GhanaWire AI - Design Report", y);
+            y = gap(y, 6);
+            y = heading(cs, project.name(), y);
+            y = gap(y, 8);
+            y = line(cs, "Generated: " + LocalDateTime.now().format(TS), y);
+            y = line(cs, "Supply: " + project.supplySummary(), y);
+            y = line(cs, "House type: " + project.settings().houseType(), y);
+            String standards = report.standardsEdition().isBlank()
+                    ? project.settings().standardsEdition() : report.standardsEdition();
+            y = line(cs, "Standards pack: " + standards
+                    + " | app " + com.ghana.gwire.GWireApp.APP_VERSION, y);
             if (report.calculatedAtExport()) {
-                y = line(cs, "Note: Calculated at export (" + report.calculatedAt() + ")", y - 4);
+                y = line(cs, "Note: Calculated at export (" + formatInstant(report.calculatedAt()) + ")", y);
             }
             y = line(cs, String.format(Locale.ROOT,
-                    "Storeys: %d · rooms: %d · devices: %d (all floors)",
+                    "Storeys: %d | rooms: %d | devices: %d (all floors)",
                     project.storeys().size(),
                     project.totalRoomCount(),
-                    project.totalDeviceCount()), y - 4);
-            y -= 16;
+                    project.totalDeviceCount()), y);
+            y = gap(y, 12);
             y = section(cs, "Design summary (after diversity)", y);
-            y = line(cs, String.format(Locale.ROOT, "Connected load: %.0f W", report.totalConnectedLoadW()), y - 6);
-            y = line(cs, String.format(Locale.ROOT, "After diversity: %.0f W · Design current: %.1f A",
-                    report.totalAfterDiversityW(), report.totalDesignCurrentA()), y - 4);
-            y = line(cs, String.format(Locale.ROOT, "Circuits: %d · Max voltage drop: %.2f%%",
-                    report.circuits().size(), report.maxVoltageDropPercent()), y - 4);
+            y = line(cs, String.format(Locale.ROOT, "Connected load: %.0f W", report.totalConnectedLoadW()), y);
+            y = line(cs, String.format(Locale.ROOT, "After diversity: %.0f W | Design current: %.1f A",
+                    report.totalAfterDiversityW(), report.totalDesignCurrentA()), y);
+            y = line(cs, String.format(Locale.ROOT, "Circuits: %d | Max voltage drop: %.2f%%",
+                    report.circuits().size(), report.maxVoltageDropPercent()), y);
             y = line(cs, String.format(Locale.ROOT, "Validation: %d error(s), %d warning(s)",
-                    report.errorCount(), report.warningCount()), y - 4);
+                    report.errorCount(), report.warningCount()), y);
             if (!report.assumptions().isEmpty()) {
-                y -= 8;
+                y = gap(y, 10);
                 y = section(cs, "Assumptions (codes)", y);
                 int shown = 0;
                 for (String code : report.assumptions()) {
-                    if (shown >= 12) {
-                        y = line(cs, "… +" + (report.assumptions().size() - shown) + " more (see app)", y - 3);
+                    if (y < MARGIN + 120) {
+                        y = line(cs, "... +" + (report.assumptions().size() - shown) + " more (see app)", y);
                         break;
                     }
-                    y = line(cs, "· " + code, y - 3);
+                    if (shown >= 14) {
+                        y = line(cs, "... +" + (report.assumptions().size() - shown) + " more (see app)", y);
+                        break;
+                    }
+                    y = line(cs, "- " + code, y);
                     shown++;
                 }
             }
-            y -= 20;
+            y = gap(y, 14);
             y = section(cs, "Contents", y);
-            y = line(cs, "1. Cover & summary", y - 6);
-            y = line(cs, "2. Floor plan layout (active storey)", y - 4);
-            y = line(cs, "3. Single-line diagram", y - 4);
-            y = line(cs, "4. Circuit schedule", y - 4);
-            y = line(cs, "5. Bill of quantities", y - 4);
-            y = line(cs, "6. Compliance checklist (L.I. 2008 practice)", y - 4);
-            footer(cs, page, "Preliminary design — verify with a CEWP before installation.");
+            y = line(cs, "1. Cover & summary", y);
+            y = line(cs, "2. Floor plan layout (active storey)", y);
+            y = line(cs, "3. Single-line diagram", y);
+            y = line(cs, "4. Circuit schedule", y);
+            y = line(cs, "5. Bill of quantities", y);
+            y = line(cs, "6. Compliance checklist (L.I. 2008 practice)", y);
+            footer(cs, page, "Preliminary design - verify with a CEWP before installation.");
         }
     }
 
@@ -150,7 +162,8 @@ public final class PdfExportService {
         try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
             float y = pageH - MARGIN;
             y = title(cs, "Floor plan layout", y);
-            y = line(cs, project.name() + " — rooms, walls, devices (plan mm)", y - 6);
+            y = gap(y, 4);
+            y = line(cs, project.name() + " - rooms, walls, devices (plan mm)", y);
 
             FloorPlan fp = project.floorPlan();
             Bounds b = bounds(fp);
@@ -211,12 +224,12 @@ public final class PdfExportService {
                 }
             } else {
                 textAt(cs, fontRegular, 11, plotX + 20, plotY + plotH / 2,
-                        "No geometry to draw — add rooms or devices first.");
+                        "No geometry to draw - add rooms or devices first.");
             }
 
             textAt(cs, fontRegular, 8, MARGIN, MARGIN + 16,
-                    "Legend: blue rectangles = rooms · dark lines = walls · green squares = devices");
-            footer(cs, page, "GhanaWire AI · floor plan");
+                    "Legend: blue rectangles = rooms | dark lines = walls | green squares = devices");
+            footer(cs, page, "GhanaWire AI - floor plan");
         }
     }
 
@@ -227,13 +240,14 @@ public final class PdfExportService {
         try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
             float y = page.getMediaBox().getHeight() - MARGIN;
             y = title(cs, "Single-line diagram", y);
-            y = line(cs, sld.title(), y - 4);
-            y = line(cs, "Schematic only — not a certified SLD", y - 4);
-            y -= 12;
+            y = gap(y, 4);
+            y = line(cs, sld.title(), y);
+            y = line(cs, "Schematic only - not a certified SLD", y);
+            y = gap(y, 10);
             y = drawSldNode(cs, sld.root(), MARGIN, y, 0);
-            y -= 10;
+            y = gap(y, 8);
             y = wrapped(cs, sld.notes(), y, 9);
-            footer(cs, page, "GhanaWire AI · single-line diagram");
+            footer(cs, page, "GhanaWire AI - single-line diagram");
         }
     }
 
@@ -244,11 +258,13 @@ public final class PdfExportService {
         }
         String indent = "  ".repeat(Math.min(depth, 8));
         String kind = node.kind().name();
-        y = textAt(cs, fontBold, 10, x, y, indent + "+ " + kind + ": " + safe(node.label())) - 2;
+        textAt(cs, fontBold, 10, x, y, indent + "+ " + kind + ": " + safe(node.label()));
+        y -= BODY_LEADING;
         if (!node.detail().isBlank()) {
-            y = textAt(cs, fontRegular, 8, x + 12, y - 2, indent + "  " + safe(node.detail())) - 2;
+            textAt(cs, fontRegular, 8, x + 12, y, indent + "  " + safe(node.detail()));
+            y -= SMALL_LEADING;
         }
-        y -= 4;
+        y -= 2;
         for (SingleLineDiagram.Node child : node.children()) {
             y = drawSldNode(cs, child, x, y, depth + 1);
         }
@@ -262,20 +278,20 @@ public final class PdfExportService {
         try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
             float y = page.getMediaBox().getHeight() - MARGIN;
             y = title(cs, "Circuit schedule", y);
-            y = line(cs, "Project: " + project.name() + " · " + project.supplySummary(), y - 6);
-            y -= 10;
+            y = gap(y, 4);
+            y = line(cs, "Project: " + project.name() + " | " + project.supplySummary(), y);
+            y = gap(y, 8);
 
             String[] headers = {"Circuit", "Kind", "P (W)", "I (A)", "Cable", "MCB", "Vd %", "L (m)"};
             float[] cols = {120, 70, 50, 45, 70, 40, 40, 45};
             y = tableHeader(cs, headers, cols, MARGIN, y);
 
             if (report.circuits().isEmpty()) {
-                y = line(cs, "No circuits calculated.", y - 10);
+                y = line(cs, "No circuits calculated.", y);
             } else {
-                int shown = 0;
                 for (CircuitLoad c : report.circuits()) {
                     if (y < MARGIN + 60) {
-                        y = line(cs, "... additional circuits omitted (see app for full list)", y - 8);
+                        y = line(cs, "... additional circuits omitted (see app for full list)", y);
                         break;
                     }
                     String[] row = {
@@ -290,13 +306,9 @@ public final class PdfExportService {
                             String.format(Locale.ROOT, "%.1f", c.estimatedLengthM())
                     };
                     y = tableRow(cs, row, cols, MARGIN, y);
-                    shown++;
-                }
-                if (shown < report.circuits().size()) {
-                    // already noted above when y ran out
                 }
             }
-            footer(cs, page, "GhanaWire AI · circuit schedule");
+            footer(cs, page, "GhanaWire AI - circuit schedule");
         }
     }
 
@@ -306,8 +318,9 @@ public final class PdfExportService {
         try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
             float y = page.getMediaBox().getHeight() - MARGIN;
             y = title(cs, "Bill of quantities", y);
-            y = line(cs, "Currency: GHS · device counts + estimated circuit cables", y - 6);
-            y -= 10;
+            y = gap(y, 4);
+            y = line(cs, "Currency: GHS | device counts + estimated circuit cables", y);
+            y = gap(y, 8);
 
             ComponentLibraryService lib = safeLib();
             List<String[]> rows = new ArrayList<>();
@@ -353,7 +366,7 @@ public final class PdfExportService {
             float[] cols = {220, 50, 40, 70, 70};
             y = tableHeader(cs, headers, cols, MARGIN, y);
             if (rows.isEmpty()) {
-                y = line(cs, "No BOQ lines — place devices or recalculate loads.", y - 10);
+                y = line(cs, "No BOQ lines - place devices or recalculate loads.", y);
             } else {
                 for (String[] row : rows) {
                     if (y < MARGIN + 50) {
@@ -362,8 +375,9 @@ public final class PdfExportService {
                     y = tableRow(cs, row, cols, MARGIN, y);
                 }
             }
-            y = line(cs, String.format(Locale.ROOT, "Subtotal: GHS %.2f", grand), y - 14);
-            footer(cs, page, "GhanaWire AI · BOQ");
+            y = gap(y, 10);
+            y = line(cs, String.format(Locale.ROOT, "Subtotal: GHS %.2f", grand), y);
+            footer(cs, page, "GhanaWire AI - BOQ");
         }
     }
 
@@ -374,12 +388,13 @@ public final class PdfExportService {
         try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
             float y = page.getMediaBox().getHeight() - MARGIN;
             y = title(cs, "Compliance checklist", y);
-            y = line(cs, "Illustrative L.I. 2008 / good-practice checks — not a certificate", y - 6);
-            y -= 10;
+            y = gap(y, 4);
+            y = line(cs, "Illustrative L.I. 2008 / good-practice checks - not a certificate", y);
+            y = gap(y, 8);
 
             y = section(cs, "Automatic checks from calculation engine", y);
             if (report.issues().isEmpty()) {
-                y = line(cs, "No automatic issues raised for the current model.", y - 8);
+                y = line(cs, "No automatic issues raised for the current model.", y);
             } else {
                 for (ValidationIssue issue : report.issues()) {
                     if (y < MARGIN + 80) {
@@ -390,11 +405,12 @@ public final class PdfExportService {
                         case WARNING -> "[WRN]";
                         case INFO -> "[INF]";
                     };
-                    y = wrapped(cs, mark + " " + issue.code() + ": " + issue.message(), y - 6, 11);
+                    y = gap(y, 4);
+                    y = wrapped(cs, mark + " " + issue.code() + ": " + issue.message(), y, 9);
                 }
             }
 
-            y -= 16;
+            y = gap(y, 14);
             y = section(cs, "Manual CEWP review (tick when verified)", y);
             String[] manual = {
                     "[ ] Cable installation methods match site (clipped, conduit, buried)",
@@ -406,61 +422,67 @@ public final class PdfExportService {
                     "[ ] As-built drawings updated after installation"
             };
             for (String m : manual) {
-                y = line(cs, m, y - 10);
+                y = line(cs, m, y);
             }
 
-            y -= 16;
+            y = gap(y, 14);
             y = line(cs, "Prepared with GhanaWire AI. Signature / stamp: ____________________  Date: ________", y);
-            footer(cs, page, "GhanaWire AI · compliance checklist");
+            footer(cs, page, "GhanaWire AI - compliance checklist");
         }
     }
 
     // --- drawing helpers ---
 
+    private static float gap(float y, float dy) {
+        return y - dy;
+    }
+
     private float title(PDPageContentStream cs, String text, float y) throws IOException {
-        cs.beginText();
-        cs.setFont(fontBold, 16);
-        cs.newLineAtOffset(MARGIN, y);
-        cs.showText(safe(text));
-        cs.endText();
+        textAt(cs, fontBold, 16, MARGIN, y, text);
         return y - 22;
     }
 
     private float heading(PDPageContentStream cs, String text, float y) throws IOException {
-        cs.beginText();
-        cs.setFont(fontBold, 13);
-        cs.newLineAtOffset(MARGIN, y);
-        cs.showText(safe(text));
-        cs.endText();
+        textAt(cs, fontBold, 13, MARGIN, y, text);
         return y - 18;
     }
 
     private float section(PDPageContentStream cs, String text, float y) throws IOException {
-        cs.beginText();
-        cs.setFont(fontBold, 11);
-        cs.newLineAtOffset(MARGIN, y);
-        cs.showText(safe(text));
-        cs.endText();
-        return y - 14;
+        textAt(cs, fontBold, 11, MARGIN, y, text);
+        return y - 16;
     }
 
+    /**
+     * Draw a body line at baseline {@code y} and return the next baseline
+     * (leading {@link #BODY_LEADING}). Callers must pass the current baseline only —
+     * do not pre-subtract small offsets (that caused overlapping text).
+     */
     private float line(PDPageContentStream cs, String text, float y) throws IOException {
-        return textAt(cs, fontRegular, 10, MARGIN, y, text) - 2;
+        textAt(cs, fontRegular, 10, MARGIN, y, text);
+        return y - BODY_LEADING;
     }
 
     private float textAt(PDPageContentStream cs, PDType1Font font, float size, float x, float y, String text)
             throws IOException {
+        String s = safe(text);
+        if (s.isEmpty()) {
+            return y;
+        }
+        // Clip to printable page width to avoid PDFBox issues with huge strings
+        float maxWidth = PDRectangle.A4.getWidth() - MARGIN - x;
+        s = fitWidth(font, size, s, maxWidth);
         cs.beginText();
         cs.setFont(font, size);
         cs.newLineAtOffset(x, y);
-        cs.showText(safe(text));
+        cs.showText(s);
         cs.endText();
         return y;
     }
 
     private float wrapped(PDPageContentStream cs, String text, float y, float size) throws IOException {
         String s = safe(text);
-        int max = 95;
+        int max = 90;
+        float leading = size + 4f;
         while (!s.isEmpty() && y > MARGIN + 40) {
             String chunk;
             if (s.length() <= max) {
@@ -475,7 +497,7 @@ public final class PdfExportService {
                 s = s.substring(cut).trim();
             }
             textAt(cs, fontRegular, size, MARGIN, y, chunk);
-            y -= size + 3;
+            y -= leading;
         }
         return y;
     }
@@ -483,16 +505,15 @@ public final class PdfExportService {
     private float tableHeader(PDPageContentStream cs, String[] headers, float[] cols, float x, float y)
             throws IOException {
         float xx = x;
-        cs.setFont(fontBold, 9);
         for (int i = 0; i < headers.length; i++) {
             textAt(cs, fontBold, 9, xx, y, headers[i]);
             xx += cols[i];
         }
         cs.setStrokingColor(Color.GRAY);
-        cs.moveTo(x, y - 3);
-        cs.lineTo(x + sum(cols), y - 3);
+        cs.moveTo(x, y - 4);
+        cs.lineTo(x + sum(cols), y - 4);
         cs.stroke();
-        return y - 14;
+        return y - 16;
     }
 
     private float tableRow(PDPageContentStream cs, String[] cells, float[] cols, float x, float y)
@@ -502,11 +523,11 @@ public final class PdfExportService {
             textAt(cs, fontRegular, 8, xx, y, cells[i]);
             xx += cols[i];
         }
-        return y - 12;
+        return y - 13;
     }
 
     private void footer(PDPageContentStream cs, PDPage page, String text) throws IOException {
-        textAt(cs, fontRegular, 8, MARGIN, 28, safe(text));
+        textAt(cs, fontRegular, 8, MARGIN, 28, text);
     }
 
     private static float sum(float[] a) {
@@ -517,24 +538,87 @@ public final class PdfExportService {
         return s;
     }
 
-    private static String safe(String s) {
+    private static String formatInstant(Instant instant) {
+        if (instant == null) {
+            return "-";
+        }
+        return LocalDateTime.ofInstant(instant, ZoneId.systemDefault()).format(TS);
+    }
+
+    /**
+     * Convert text to WinAnsi/Helvetica-safe ASCII so PDFBox does not render
+     * missing glyphs as "?" or throw encoding errors.
+     */
+    static String safe(String s) {
         if (s == null) {
             return "";
         }
-        // WinAnsi-safe: strip non-latin1
         StringBuilder sb = new StringBuilder(s.length());
-        for (char c : s.toCharArray()) {
-            if (c == '\n' || c == '\r' || c == '\t') {
-                sb.append(' ');
-            } else if (c >= 32 && c <= 126) {
-                sb.append(c);
-            } else if (c >= 160 && c <= 255) {
-                sb.append(c);
-            } else {
-                sb.append('?');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\n', '\r', '\t' -> sb.append(' ');
+                case '\u00A0' -> sb.append(' '); // nbsp
+                case '\u2013', '\u2014', '\u2212' -> sb.append('-'); // en/em/minus
+                case '\u2018', '\u2019', '\u201A' -> sb.append('\'');
+                case '\u201C', '\u201D', '\u201E' -> sb.append('"');
+                case '\u2022', '\u00B7', '\u2219' -> sb.append('-'); // bullets / middot
+                case '\u2026' -> sb.append("...");
+                case '\u00D7', '\u2715', '\u2716' -> sb.append('x');
+                case '\u00F7' -> sb.append('/');
+                case '\u2264' -> sb.append("<=");
+                case '\u2265' -> sb.append(">=");
+                case '\u2192', '\u21D2' -> sb.append("->");
+                case '\u00B0' -> sb.append(" deg");
+                case '\u00B2' -> sb.append("2"); // mm2
+                case '\u00B3' -> sb.append("3");
+                case '\u00BD' -> sb.append("1/2");
+                case '\u2126', '\u03A9' -> sb.append("ohm");
+                case '\u00B1' -> sb.append("+/-");
+                default -> {
+                    if (c >= 32 && c <= 126) {
+                        sb.append(c);
+                    } else if (c >= 160 && c <= 255) {
+                        // Common Latin-1: map a few remaining awkward glyphs
+                        sb.append(switch (c) {
+                            case '\u00A9' -> "(c)";
+                            case '\u00AE' -> "(R)";
+                            case '\u00B5' -> 'u';
+                            default -> '?'; // remaining Latin-1 rarely needed
+                        });
+                    } else {
+                        // Drop other Unicode (emoji, CJK, etc.) rather than litter '?'
+                    }
+                }
             }
         }
-        return sb.toString();
+        // Collapse runs of spaces
+        return sb.toString().replaceAll(" +", " ").trim();
+    }
+
+    private static String fitWidth(PDType1Font font, float size, String text, float maxWidth)
+            throws IOException {
+        if (maxWidth <= 0 || text.isEmpty()) {
+            return text;
+        }
+        float w = font.getStringWidth(text) / 1000f * size;
+        if (w <= maxWidth) {
+            return text;
+        }
+        String ell = "...";
+        int lo = 0;
+        int hi = text.length();
+        while (lo < hi) {
+            int mid = (lo + hi + 1) / 2;
+            String candidate = text.substring(0, mid) + ell;
+            float cw = font.getStringWidth(candidate) / 1000f * size;
+            if (cw <= maxWidth) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return lo <= 0 ? ell : text.substring(0, lo) + ell;
     }
 
     private static String truncate(String s, int max) {
@@ -543,7 +627,7 @@ public final class PdfExportService {
     }
 
     private static String nullToDash(String s) {
-        return s == null || s.isBlank() ? "-" : s;
+        return s == null || s.isBlank() ? "-" : safe(s);
     }
 
     private static ComponentLibraryService safeLib() {
