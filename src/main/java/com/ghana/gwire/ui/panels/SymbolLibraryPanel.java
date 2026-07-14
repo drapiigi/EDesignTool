@@ -47,7 +47,7 @@ public class SymbolLibraryPanel {
     };
 
     public SymbolLibraryPanel() {
-        Label title = new Label("Symbol library");
+        Label title = new Label("Symbols");
         title.getStyleClass().add("panel-title");
 
         ComponentLibraryService lib = safeLibrary();

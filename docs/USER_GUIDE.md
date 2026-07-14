@@ -26,9 +26,9 @@ On first launch, accept the disclaimer and CEWP acknowledgment checkbox.
 1. **File → New from Template** (1-bed / 3-bed / 2-storey) or **Help → Open Sample 3-Bed House**.
 2. Explore the plan: pan with empty drag or Space+drag; zoom with Ctrl+scroll.
 3. **Import** a scanned plan if needed, then **Tools → Calibrate background scale** (two points + real length).
-4. Drag devices from the **symbol library** onto rooms — or use **Design → AI Generate** (ghost preview → Accept selected).
-5. **Tools → Recalculate Loads** — review loads, cables, issues, and **assumptions**. Materializes **persistent circuits** / CU when empty.
-6. Review **Electrical model**: Circuits, CU board, cables, checklist.
+4. Drag devices from the left **Symbols** list onto rooms — or open the right-hand **AI Chat** tab (Ctrl+K).
+5. **Tools → Recalculate Loads** — open **Results** / **Circuits** tabs for loads, CU, and checklist.
+6. **Design → AI Generate** shows ghost placements; Accept selected or use AI Chat quick actions.
 7. **Tools → Price book…** to edit catalogue unit costs (GHS) used by BOQ.
 8. **File → Export PDF Report** or **Export BOQ (Excel)**.
 9. **File → Save** (`.gwire` format **1.3**) or **Save as Package** (`.gwirez`).

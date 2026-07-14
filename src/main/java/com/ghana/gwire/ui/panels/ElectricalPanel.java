@@ -58,10 +58,10 @@ public class ElectricalPanel {
     };
 
     public ElectricalPanel() {
-        Label title = new Label("Electrical model");
+        Label title = new Label("Circuits & CU");
         title.getStyleClass().add("panel-title");
 
-        summaryLabel = new Label("Run Tools → Recalculate Loads to materialize circuits.");
+        summaryLabel = new Label("Recalculate loads to build circuits and the consumer unit.");
         summaryLabel.getStyleClass().add("panel-body");
         summaryLabel.setWrapText(true);
 

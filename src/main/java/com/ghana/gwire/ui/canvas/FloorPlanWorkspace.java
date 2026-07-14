@@ -55,6 +55,7 @@ public class FloorPlanWorkspace {
         toolbar.setImportAction(this::importFloorPlan);
         toolbar.setClearBgAction(this::clearBackground);
         toolbar.setFitAction(canvas::fitToWindow);
+        toolbar.setCalibrateAction(() -> canvas.setTool(DrawTool.CALIBRATE_SCALE));
         toolbar.bindCadSettings(canvas.getCadSettings());
 
         storeyBar.setOnStoreyChanged(this::switchStorey);

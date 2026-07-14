@@ -28,6 +28,7 @@
 
 | Shortcut | Action |
 |----------|--------|
+| **Ctrl+K** | Focus **AI Chat** panel |
 | **Ctrl+G** | AI Generate Design (ghost preview) |
 | **Ctrl+R** | Recalculate loads |
 | **Ctrl+L** | Validate standards (L.I. 2008 practice) |

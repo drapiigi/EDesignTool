@@ -172,3 +172,108 @@
     -fx-border-radius: 4;
     -fx-background-radius: 4;
 }
+
+.right-dock-tabs {
+    -fx-background-color: #f6f8fb;
+    -fx-border-color: #d0d7e2;
+    -fx-border-width: 0 0 0 1;
+}
+
+.right-dock-tabs > .tab-header-area {
+    -fx-background-color: #eef2f7;
+    -fx-padding: 4 4 0 4;
+}
+
+.right-dock-tabs > .tab-header-area .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 6 12 6 12;
+}
+
+.right-dock-tabs > .tab-header-area .tab .tab-label {
+    -fx-text-fill: #5a6578;
+    -fx-font-size: 12px;
+}
+
+.right-dock-tabs > .tab-header-area .tab:selected {
+    -fx-background-color: #f6f8fb;
+}
+
+.right-dock-tabs > .tab-header-area .tab:selected .tab-label {
+    -fx-text-fill: #1f7a52;
+    -fx-font-weight: bold;
+}
+
+.right-dock-tabs > .tab-content-area {
+    -fx-background-color: #f6f8fb;
+    -fx-padding: 0;
+}
+
+.ai-chat-panel {
+    -fx-background-color: #f6f8fb;
+}
+
+.ai-chat-list {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d0d7e2;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-control-inner-background: #ffffff;
+}
+
+.ai-chat-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 4 2 4 2;
+}
+
+.ai-msg-meta {
+    -fx-font-size: 10px;
+    -fx-text-fill: #7a8699;
+}
+
+.ai-msg-body {
+    -fx-font-size: 12px;
+    -fx-text-fill: #1a2030;
+    -fx-line-spacing: 2;
+}
+
+.ai-msg-user {
+    -fx-background-color: #e8edf5;
+    -fx-background-radius: 8;
+}
+
+.ai-msg-assistant {
+    -fx-background-color: #e8f5ee;
+    -fx-background-radius: 8;
+    -fx-border-color: #1f7a5244;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+}
+
+.ai-msg-system {
+    -fx-background-color: #f0f3f8;
+    -fx-background-radius: 8;
+}
+
+.ai-chip {
+    -fx-background-color: #e8edf5;
+    -fx-text-fill: #2a3344;
+    -fx-background-radius: 12;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+}
+
+.ai-chip:hover {
+    -fx-background-color: #1f7a52;
+    -fx-text-fill: #ffffff;
+}
+
+.ai-chat-input {
+    -fx-pref-height: 32;
+}
+
+.cad-command-field {
+    -fx-pref-height: 26;
+    -fx-font-size: 12px;
+}

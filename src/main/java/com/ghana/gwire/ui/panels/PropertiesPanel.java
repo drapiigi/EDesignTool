@@ -132,11 +132,7 @@ public class PropertiesPanel {
         });
 
         Label standards = new Label(
-                "Defaults (Ghana L.I. 2008 context):\n"
-                        + "• 230 V / 50 Hz single-phase\n"
-                        + "• Grid snap 500 mm\n"
-                        + "• Units: millimetres on plan\n"
-                        + "• Device heights: sockets 300 / switches 1200 / lights 2400 mm"
+                "L.I. 2008 · 230 V / 50 Hz · snap 500 mm · heights: socket 300 / switch 1200 / light 2400 mm AFF"
         );
         standards.getStyleClass().add("panel-footer");
         standards.setWrapText(true);

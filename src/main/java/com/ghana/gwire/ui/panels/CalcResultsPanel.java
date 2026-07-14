@@ -33,14 +33,14 @@ public class CalcResultsPanel {
     private final ObservableList<String> assumptionRows = FXCollections.observableArrayList();
 
     public CalcResultsPanel() {
-        Label title = new Label("Calculation & standards");
+        Label title = new Label("Results");
         title.getStyleClass().add("panel-title");
 
         stateBanner = new Label("Not calculated");
         stateBanner.getStyleClass().add("panel-subtitle");
         stateBanner.setWrapText(true);
 
-        summaryLabel = new Label("Run Tools → Recalculate Loads to generate a design report.");
+        summaryLabel = new Label("Tools → Recalculate Loads (Ctrl+R) for loads, cables, and checks.");
         summaryLabel.getStyleClass().add("panel-body");
         summaryLabel.setWrapText(true);
 

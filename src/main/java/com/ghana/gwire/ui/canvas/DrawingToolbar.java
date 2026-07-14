@@ -30,6 +30,8 @@ public class DrawingToolbar {
     };
     private Runnable fitAction = () -> {
     };
+    private Runnable calibrateAction = () -> {
+    };
     /** Suppress listener when selecting tools programmatically (avoids setTool ↔ selectTool recursion). */
     private boolean suppressToolEvents;
 
@@ -39,7 +41,12 @@ public class DrawingToolbar {
         root.setPadding(new Insets(6, 10, 6, 10));
         root.getStyleClass().add("drawing-toolbar");
 
-        for (DrawTool tool : DrawTool.values()) {
+        // Primary tools only — Place is drag-from-library; Scale is a toolbar action
+        DrawTool[] primary = {
+                DrawTool.SELECT, DrawTool.PAN, DrawTool.WALL, DrawTool.ROOM,
+                DrawTool.DOOR, DrawTool.WINDOW
+        };
+        for (DrawTool tool : primary) {
             ToggleButton btn = new ToggleButton(tool.label());
             btn.setToggleGroup(group);
             btn.setUserData(tool);
@@ -65,14 +72,16 @@ public class DrawingToolbar {
 
         root.getChildren().add(new Separator(Orientation.VERTICAL));
 
-        Button importBtn = actionButton("Import plan…", "Import image or PDF as background");
+        Button importBtn = actionButton("Import…", "Import image or PDF as background");
         importBtn.setOnAction(e -> importAction.run());
+        Button calibrate = actionButton("Scale", "Calibrate background scale (two points + known length)");
+        calibrate.setOnAction(e -> calibrateAction.run());
         Button clearBg = actionButton("Clear bg", "Remove imported background");
         clearBg.setOnAction(e -> clearBgAction.run());
         Button fit = actionButton("Fit", "Fit plan to window");
         fit.setOnAction(e -> fitAction.run());
 
-        root.getChildren().addAll(importBtn, clearBg, fit);
+        root.getChildren().addAll(importBtn, calibrate, clearBg, fit);
 
         root.getChildren().add(new Separator(Orientation.VERTICAL));
 
@@ -136,9 +145,18 @@ public class DrawingToolbar {
         } : fitAction;
     }
 
+    public void setCalibrateAction(Runnable calibrateAction) {
+        this.calibrateAction = calibrateAction == null ? () -> {
+        } : calibrateAction;
+    }
+
     public void selectTool(DrawTool tool) {
         ToggleButton btn = buttons.get(tool);
-        if (btn == null || btn.isSelected()) {
+        if (btn == null) {
+            // Secondary tools (Place, Scale) — leave primary selection alone
+            return;
+        }
+        if (btn.isSelected()) {
             return;
         }
         suppressToolEvents = true;

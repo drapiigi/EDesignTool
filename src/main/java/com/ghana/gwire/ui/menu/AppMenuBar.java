@@ -100,6 +100,7 @@ public class AppMenuBar {
 
         Menu design = new Menu("_Design");
         design.getItems().addAll(
+                item("Open _AI Chat", KeyCode.K, true, window::showAiChat),
                 item("_AI Generate Design…", KeyCode.G, true, window::aiGenerateDesign),
                 item("AI Generate (rules _only)…", null, false, window::aiGenerateDesignRulesOnly),
                 item("Analyze Floor Plan (_Vision)…", null, false, window::analyzeFloorPlanVision),
@@ -111,7 +112,6 @@ public class AppMenuBar {
                 item("Tool: _Door", null, false, () -> window.setTool(DrawTool.DOOR)),
                 item("Tool: Windo_w", null, false, () -> window.setTool(DrawTool.WINDOW)),
                 item("Tool: _Pan", null, false, () -> window.setTool(DrawTool.PAN)),
-                item("Tool: Calibrate _Scale", null, false, window::calibrateBackgroundScale),
                 new SeparatorMenuItem(),
                 item("Reload symbol _library", null, false, window::showComponentLibrary)
         );
@@ -131,7 +131,7 @@ public class AppMenuBar {
                 item("Component _Library", null, false, window::showComponentLibrary),
                 item("_Price book…", null, false, window::showPriceBook),
                 new SeparatorMenuItem(),
-                item("AI _Co-pilot Chat…", null, false, window::aiCopilotChat),
+                item("Focus AI _Chat panel", null, false, window::showAiChat),
                 telemetry
         );
 

@@ -27,6 +27,7 @@ import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
 import com.ghana.gwire.ui.dialogs.PriceBookDialog;
 import com.ghana.gwire.ui.menu.AppMenuBar;
+import com.ghana.gwire.ui.panels.AiChatPanel;
 import com.ghana.gwire.ui.panels.BoqPanel;
 import com.ghana.gwire.ui.panels.CalcResultsPanel;
 import com.ghana.gwire.ui.panels.ElectricalPanel;
@@ -42,6 +43,8 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
@@ -79,6 +82,9 @@ public class MainWindow {
     private final CalcResultsPanel calcResultsPanel;
     private final ElectricalPanel electricalPanel;
     private final BoqPanel boqPanel;
+    private final AiChatPanel aiChatPanel;
+    private final TabPane rightTabs;
+    private final Tab aiChatTab;
     private final AppMenuBar menuBar;
     private final CalcEngine calcEngine = new CalcEngine();
     private final ProjectStore projectStore = new ProjectStore();
@@ -113,6 +119,7 @@ public class MainWindow {
         this.calcResultsPanel = new CalcResultsPanel();
         this.electricalPanel = new ElectricalPanel();
         this.boqPanel = new BoqPanel();
+        this.aiChatPanel = new AiChatPanel();
         this.menuBar = new AppMenuBar(this);
 
         workspace.setOwnerWindow(stage);
@@ -138,26 +145,33 @@ public class MainWindow {
         electricalPanel.setStatusSink(statusBar::setMessage);
         electricalPanel.setModelChanged(this::onModelChanged);
         statusBar.setCommandHandler(this::handleCadCommand);
+        wireAiChatPanel();
         TelemetryService.get().setEnabled(this.userPrefs.isTelemetryOptIn());
         TelemetryService.get().record(TelemetryService.EVENT_APP_START);
 
-        SplitPane rightSplit = new SplitPane(
-                propertiesPanel.getRoot(),
-                calcResultsPanel.getRoot(),
-                electricalPanel.getRoot(),
-                boqPanel.getRoot()
-        );
-        rightSplit.setOrientation(Orientation.VERTICAL);
-        rightSplit.setDividerPositions(0.22, 0.48, 0.75);
-        rightSplit.setPrefWidth(360);
+        // Right dock: single tabbed inspector (declutter) + dedicated AI chat tab
+        Tab propsTab = tab("Inspector", propertiesPanel.getRoot());
+        Tab resultsTab = tab("Results", calcResultsPanel.getRoot());
+        Tab elecTab = tab("Circuits", electricalPanel.getRoot());
+        Tab boqTab = tab("BOQ", boqPanel.getRoot());
+        aiChatTab = tab("AI Chat", aiChatPanel.getRoot());
+        rightTabs = new TabPane(propsTab, resultsTab, elecTab, boqTab, aiChatTab);
+        rightTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        rightTabs.getStyleClass().add("right-dock-tabs");
+        rightTabs.setPrefWidth(340);
+        rightTabs.setMinWidth(280);
+
+        symbolLibraryPanel.getRoot().setPrefWidth(220);
+        symbolLibraryPanel.getRoot().setMinWidth(160);
+        symbolLibraryPanel.getRoot().setMaxWidth(320);
 
         SplitPane centerSplit = new SplitPane(
                 symbolLibraryPanel.getRoot(),
                 workspace.getRoot(),
-                rightSplit
+                rightTabs
         );
         centerSplit.setOrientation(Orientation.HORIZONTAL);
-        centerSplit.setDividerPositions(0.20, 0.68);
+        centerSplit.setDividerPositions(0.16, 0.72);
         VBox.setVgrow(centerSplit, Priority.ALWAYS);
 
         VBox centerColumn = new VBox(centerSplit);
@@ -182,10 +196,31 @@ public class MainWindow {
             // library optional at UI build time
         }
         statusBar.setMessage(
-                "Ready · Help → Open Sample 3-Bed House · File → Export PDF/Excel ("
-                        + count + " catalogue items)."
+                "Ready · File → New from Template · drag symbols · AI Chat tab for co-pilot ("
+                        + count + " catalogue items)"
         );
         statusBar.setSecondary(GWireApp.standardsStamp() + " · 230 V / 50 Hz");
+    }
+
+    private static Tab tab(String title, javafx.scene.Node content) {
+        Tab t = new Tab(title, content);
+        t.setClosable(false);
+        return t;
+    }
+
+    private void wireAiChatPanel() {
+        aiChatPanel.setOnSend(this::handleAiChatMessage);
+        aiChatPanel.setOnGenerate(this::aiGenerateDesign);
+        aiChatPanel.setOnRecalculate(this::recalculateLoads);
+        aiChatPanel.setOnValidate(this::validateStandards);
+    }
+
+    /** Switch right dock to AI Chat and focus the input. */
+    public void showAiChat() {
+        rightTabs.getSelectionModel().select(aiChatTab);
+        aiChatPanel.refreshMode();
+        aiChatPanel.focusInput();
+        statusBar.setMessage("AI Chat ready — type a design question or command");
     }
 
     /** Background HTTPS version check (non-blocking banner). */
@@ -1356,38 +1391,48 @@ public class MainWindow {
     }
 
     /**
-     * Minimal co-pilot prompt (rule-based commands; optional LLM free-text when configured).
+     * Opens the dedicated AI Chat dock (replaces modal co-pilot dialog).
      */
     public void aiCopilotChat() {
+        showAiChat();
+    }
+
+    private void handleAiChatMessage(String msg) {
         if (project == null) {
-            statusBar.setMessage("No project for co-pilot.");
+            aiChatPanel.appendAssistant("No project open — use File → New or a template first.");
             return;
         }
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.initOwner(stage);
-        dialog.setTitle("AI Co-pilot");
-        dialog.setHeaderText("GhanaWire co-pilot (examples: add socket in Living, recalculate)");
-        dialog.setContentText("Command:");
-        dialog.showAndWait().ifPresent(msg -> {
-            try {
-                workspace.getHistory().push(project.floorPlan());
-                AiDesignService ai = new AiDesignService(AiSettings.load());
-                String reply = ai.coPilot(project, LibraryBootstrap.get(), msg);
-                workspace.getCanvas().redraw();
-                boqPanel.refresh();
-                refreshTitleAndStatus();
-                statusBar.setMessage("Co-pilot: " + (reply.length() > 80 ? reply.substring(0, 80) + "…" : reply));
-                Alert info = new Alert(Alert.AlertType.INFORMATION);
-                info.initOwner(stage);
-                info.setTitle("AI Co-pilot");
-                info.setHeaderText("Reply");
-                info.setContentText(reply);
-                info.showAndWait();
-            } catch (Exception ex) {
-                log.warn("Co-pilot failed: {}", ex.getMessage());
-                statusBar.setMessage("Co-pilot failed: " + ex.getMessage());
+        aiChatPanel.setBusy(true);
+        statusBar.setMessage("Co-pilot thinking…");
+        // Run on FX thread but keep UI responsive for short rule paths
+        try {
+            String lower = msg.toLowerCase();
+            if (lower.contains("generate") || lower.contains("auto-place") || lower.contains("auto place")) {
+                aiChatPanel.appendAssistant(
+                        "Opening AI design preview… Accept or reject ghosts on the canvas when ready."
+                );
+                aiChatPanel.setBusy(false);
+                aiGenerateDesign();
+                return;
             }
-        });
+            workspace.getHistory().push(project.floorPlan());
+            AiDesignService ai = new AiDesignService(AiSettings.load());
+            String reply = ai.coPilot(project, LibraryBootstrap.get(), msg);
+            workspace.getCanvas().redraw();
+            onModelChanged();
+            refreshSelection();
+            electricalPanel.refresh();
+            aiChatPanel.appendAssistant(reply);
+            String shortReply = reply.length() > 100 ? reply.substring(0, 100) + "…" : reply;
+            statusBar.setMessage("Co-pilot: " + shortReply.replace('\n', ' '));
+        } catch (Exception ex) {
+            log.warn("Co-pilot failed: {}", ex.getMessage());
+            aiChatPanel.appendAssistant("Sorry — something went wrong: " + ex.getMessage());
+            statusBar.setMessage("Co-pilot failed: " + ex.getMessage());
+        } finally {
+            aiChatPanel.setBusy(false);
+            aiChatPanel.refreshMode();
+        }
     }
 
     public void setTool(DrawTool tool) {
@@ -1543,17 +1588,15 @@ public class MainWindow {
         guide.setHeaderText(GWireApp.APP_NAME + " — quick start");
         guide.setContentText(
                 """
-                1. File → New from Template (1-bed / 3-bed / 2-storey) or Help → Sample
-                2. Draw walls/rooms or import a plan · Tools → Calibrate scale if needed
-                3. Drag symbols from the library onto the plan
-                4. Tools → Recalculate Loads · review Electrical model panel
-                5. Design → AI Generate (ghost preview: Accept selected / Reject)
-                6. File → Export PDF Report or Export BOQ (Excel)
+                1. File → New from Template (or Help → Sample)
+                2. Draw / import plan · toolbar Scale to calibrate background
+                3. Drag Symbols onto rooms
+                4. Right dock tabs: Inspector · Results · Circuits · BOQ · AI Chat
+                5. Ctrl+K for AI Chat · Ctrl+G for AI design ghosts
+                6. Ctrl+R recalculate · File → Export PDF / BOQ
 
-                CAD: type LINE or a length (3500 / 3.5m) in the Cmd: field
-                Price book: Tools → Price book…
-
-                Full notes: docs/USER_GUIDE.md · shortcuts: Help → Keyboard shortcuts
+                CAD: LINE / 3500 in bottom Cmd field
+                Full notes: docs/USER_GUIDE.md · Help → Keyboard shortcuts
                 Disclaimer: design aid only — CEWP verification required.
                 """
         );
@@ -1579,6 +1622,7 @@ public class MainWindow {
                   Ctrl+0  Fit to window
 
                 Design / tools
+                  Ctrl+K  Open AI Chat panel
                   Ctrl+G  AI generate (preview)
                   Ctrl+R  Recalculate loads
                   Ctrl+L  Validate standards

@@ -36,12 +36,12 @@ public class BoqPanel {
     private Project project;
 
     public BoqPanel() {
-        Label title = new Label("Bill of Quantities");
+        Label title = new Label("Bill of quantities");
         title.getStyleClass().add("panel-title");
 
         table = new TableView<>(rows);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.setPlaceholder(new Label("No items yet — place symbols or recalculate loads."));
+        table.setPlaceholder(new Label("Place devices or recalculate — then edit prices in Tools → Price book."));
         table.getColumns().add(col("Item", BoqRow::item));
         table.getColumns().add(col("Qty", BoqRow::qty));
         table.getColumns().add(col("Unit", BoqRow::unit));

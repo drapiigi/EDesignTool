@@ -222,3 +222,110 @@
 .calc-results-panel .list-cell.issue-info {
     -fx-text-fill: #9aa6b8;
 }
+
+/* Right dock tabs — decluttered inspector */
+.right-dock-tabs {
+    -fx-background-color: #161c28;
+    -fx-border-color: #2a3344;
+    -fx-border-width: 0 0 0 1;
+}
+
+.right-dock-tabs > .tab-header-area {
+    -fx-background-color: #1a2030;
+    -fx-padding: 4 4 0 4;
+}
+
+.right-dock-tabs > .tab-header-area .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 6 12 6 12;
+}
+
+.right-dock-tabs > .tab-header-area .tab .tab-label {
+    -fx-text-fill: #9aa6b8;
+    -fx-font-size: 12px;
+}
+
+.right-dock-tabs > .tab-header-area .tab:selected {
+    -fx-background-color: #161c28;
+}
+
+.right-dock-tabs > .tab-header-area .tab:selected .tab-label {
+    -fx-text-fill: #2f9e6a;
+    -fx-font-weight: bold;
+}
+
+.right-dock-tabs > .tab-content-area {
+    -fx-background-color: #161c28;
+    -fx-padding: 0;
+}
+
+/* AI chat */
+.ai-chat-panel {
+    -fx-background-color: #161c28;
+}
+
+.ai-chat-list {
+    -fx-background-color: #12161e;
+    -fx-border-color: #2a3344;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-control-inner-background: #12161e;
+}
+
+.ai-chat-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 4 2 4 2;
+}
+
+.ai-msg-meta {
+    -fx-font-size: 10px;
+    -fx-text-fill: #7a8699;
+}
+
+.ai-msg-body {
+    -fx-font-size: 12px;
+    -fx-text-fill: #e8edf5;
+    -fx-line-spacing: 2;
+}
+
+.ai-msg-user {
+    -fx-background-color: #243044;
+    -fx-background-radius: 8;
+}
+
+.ai-msg-assistant {
+    -fx-background-color: #1a2838;
+    -fx-background-radius: 8;
+    -fx-border-color: #2f9e6a55;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+}
+
+.ai-msg-system {
+    -fx-background-color: #1e2430;
+    -fx-background-radius: 8;
+}
+
+.ai-chip {
+    -fx-background-color: #2a3344;
+    -fx-text-fill: #c5cedc;
+    -fx-background-radius: 12;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+}
+
+.ai-chip:hover {
+    -fx-background-color: #2f9e6a;
+    -fx-text-fill: #0e1219;
+}
+
+.ai-chat-input {
+    -fx-pref-height: 32;
+}
+
+.cad-command-field {
+    -fx-pref-height: 26;
+    -fx-font-size: 12px;
+}
