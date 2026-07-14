@@ -8,7 +8,7 @@
   "maxVoltageDropPercent" : 0.49,
   "circuits" : [ {
     "kind" : "COOKER",
-    "name" : "Cooker – Kitchen",
+    "name" : "Cooker - Kitchen",
     "connectedLoadW" : 7000.0,
     "designCurrentA" : 30.43,
     "diversityFactor" : 0.53,
@@ -20,7 +20,7 @@
     "deviceCount" : 1
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Bathroom",
+    "name" : "Lighting - Bathroom",
     "connectedLoadW" : 15.0,
     "designCurrentA" : 0.07,
     "diversityFactor" : 1.0,
@@ -32,7 +32,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Bedroom 2",
+    "name" : "Lighting - Bedroom 2",
     "connectedLoadW" : 9.0,
     "designCurrentA" : 0.04,
     "diversityFactor" : 1.0,
@@ -44,7 +44,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Bedroom 3",
+    "name" : "Lighting - Bedroom 3",
     "connectedLoadW" : 9.0,
     "designCurrentA" : 0.04,
     "diversityFactor" : 1.0,
@@ -56,7 +56,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Dining",
+    "name" : "Lighting - Dining",
     "connectedLoadW" : 9.0,
     "designCurrentA" : 0.04,
     "diversityFactor" : 1.0,
@@ -68,7 +68,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Kitchen",
+    "name" : "Lighting - Kitchen",
     "connectedLoadW" : 9.0,
     "designCurrentA" : 0.04,
     "diversityFactor" : 1.0,
@@ -80,7 +80,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Living",
+    "name" : "Lighting - Living",
     "connectedLoadW" : 18.0,
     "designCurrentA" : 0.08,
     "diversityFactor" : 1.0,
@@ -92,7 +92,7 @@
     "deviceCount" : 3
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Master Bedroom",
+    "name" : "Lighting - Master Bedroom",
     "connectedLoadW" : 9.0,
     "designCurrentA" : 0.04,
     "diversityFactor" : 1.0,
@@ -104,7 +104,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Store",
+    "name" : "Lighting - Store",
     "connectedLoadW" : 9.0,
     "designCurrentA" : 0.04,
     "diversityFactor" : 1.0,
@@ -116,7 +116,7 @@
     "deviceCount" : 1
   }, {
     "kind" : "LIGHTING",
-    "name" : "Lighting – Veranda",
+    "name" : "Lighting - Veranda",
     "connectedLoadW" : 18.0,
     "designCurrentA" : 0.08,
     "diversityFactor" : 1.0,
@@ -128,7 +128,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Bathroom",
+    "name" : "Sockets - Bathroom",
     "connectedLoadW" : 360.0,
     "designCurrentA" : 1.57,
     "diversityFactor" : 1.0,
@@ -140,7 +140,7 @@
     "deviceCount" : 1
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Bedroom 2",
+    "name" : "Sockets - Bedroom 2",
     "connectedLoadW" : 720.0,
     "designCurrentA" : 1.25,
     "diversityFactor" : 0.4,
@@ -152,7 +152,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Bedroom 3",
+    "name" : "Sockets - Bedroom 3",
     "connectedLoadW" : 720.0,
     "designCurrentA" : 1.25,
     "diversityFactor" : 0.4,
@@ -164,7 +164,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Dining",
+    "name" : "Sockets - Dining",
     "connectedLoadW" : 720.0,
     "designCurrentA" : 1.25,
     "diversityFactor" : 0.4,
@@ -176,7 +176,7 @@
     "deviceCount" : 2
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Kitchen",
+    "name" : "Sockets - Kitchen",
     "connectedLoadW" : 1440.0,
     "designCurrentA" : 2.5,
     "diversityFactor" : 0.4,
@@ -188,7 +188,7 @@
     "deviceCount" : 4
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Living",
+    "name" : "Sockets - Living",
     "connectedLoadW" : 1440.0,
     "designCurrentA" : 2.5,
     "diversityFactor" : 0.4,
@@ -200,7 +200,7 @@
     "deviceCount" : 4
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Master Bedroom",
+    "name" : "Sockets - Master Bedroom",
     "connectedLoadW" : 1080.0,
     "designCurrentA" : 1.88,
     "diversityFactor" : 0.4,
@@ -212,7 +212,7 @@
     "deviceCount" : 3
   }, {
     "kind" : "SOCKET",
-    "name" : "Sockets – Veranda",
+    "name" : "Sockets - Veranda",
     "connectedLoadW" : 360.0,
     "designCurrentA" : 1.57,
     "diversityFactor" : 1.0,
