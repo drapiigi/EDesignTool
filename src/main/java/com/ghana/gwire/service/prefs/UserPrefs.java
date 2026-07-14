@@ -23,6 +23,8 @@ public final class UserPrefs {
     public static final String KEY_UPDATE_CHECK_ENABLED = "update.checkEnabled";
     public static final String KEY_UPDATE_URL = "update.versionUrl";
     public static final String KEY_BUILD_SIGNED = "build.signed";
+    /** Opt-in anonymous product telemetry (default false). */
+    public static final String KEY_TELEMETRY_OPT_IN = "telemetry.optIn";
 
     /** Default GitHub raw / release-friendly version manifest (override via prefs or env). */
     public static final String DEFAULT_VERSION_URL =
@@ -78,6 +80,18 @@ public final class UserPrefs {
             return "true".equalsIgnoreCase(sys.trim());
         }
         return "true".equalsIgnoreCase(props.getProperty(KEY_BUILD_SIGNED, "false"));
+    }
+
+    /**
+     * Whether the user opted in to generic product telemetry. Default {@code false}.
+     */
+    public boolean isTelemetryOptIn() {
+        return "true".equalsIgnoreCase(props.getProperty(KEY_TELEMETRY_OPT_IN, "false"));
+    }
+
+    public void setTelemetryOptIn(boolean optIn) {
+        props.setProperty(KEY_TELEMETRY_OPT_IN, optIn ? "true" : "false");
+        save();
     }
 
     private void load() {

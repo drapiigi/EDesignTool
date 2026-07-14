@@ -8,7 +8,11 @@ public enum DrawTool {
     DOOR("Door"),
     WINDOW("Window"),
     /** Place selected catalogue component (set via symbol library). */
-    PLACE_DEVICE("Place");
+    PLACE_DEVICE("Place"),
+    /**
+     * Two-point background scale calibration: click known segment endpoints, enter real length.
+     */
+    CALIBRATE_SCALE("Scale");
 
     private final String label;
 

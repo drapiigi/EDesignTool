@@ -37,4 +37,9 @@ public final class GwireHome {
     public static Path aiProperties() {
         return root().resolve("ai.properties");
     }
+
+    /** Opt-in generic product telemetry (no project content). */
+    public static Path telemetryLog() {
+        return root().resolve("telemetry.log");
+    }
 }

@@ -23,25 +23,27 @@ On first launch, accept the disclaimer and CEWP acknowledgment checkbox.
 
 ## 10-minute workflow
 
-1. **Help → Open Sample 3-Bed House** (or File → New / Open).
+1. **File → New from Template** (1-bed / 3-bed / 2-storey) or **Help → Open Sample 3-Bed House**.
 2. Explore the plan: pan with empty drag or Space+drag; zoom with Ctrl+scroll.
-3. Drag devices from the **symbol library** onto rooms.
-4. **Tools → Recalculate Loads** — review connected load, diversity, cables, issues, and **assumptions**. This also materializes **persistent circuits** and a **consumer unit** when the project has none.
-5. Review the right-hand **Electrical model** panel: Circuits, CU board, cable schedule, and checklist (tick reviewed issues).
-6. Select a device to set **mounting height (mm AFF)** and **circuit assignment** in Properties.
-7. **Tools → Validate Standards** for L.I. 2008 practice checks (illustrative).
-8. **File → Export PDF Report** or **Export BOQ (Excel)** — checklist export includes reviewed state.
-9. **File → Save** (`.gwire` format **1.3**) or **Save as Package** (`.gwirez` with embedded plan images).
+3. **Import** a scanned plan if needed, then **Tools → Calibrate background scale** (two points + real length).
+4. Drag devices from the **symbol library** onto rooms — or use **Design → AI Generate** (ghost preview → Accept selected).
+5. **Tools → Recalculate Loads** — review loads, cables, issues, and **assumptions**. Materializes **persistent circuits** / CU when empty.
+6. Review **Electrical model**: Circuits, CU board, cables, checklist.
+7. **Tools → Price book…** to edit catalogue unit costs (GHS) used by BOQ.
+8. **File → Export PDF Report** or **Export BOQ (Excel)**.
+9. **File → Save** (`.gwire` format **1.3**) or **Save as Package** (`.gwirez`).
 
 ---
 
 ## Tips
 
+- CAD command line at the bottom: `LINE`, `3500`, `3.5m`, `ORTHO ON` — see [KEYBOARD.md](KEYBOARD.md).
 - Autosave runs every 5 minutes when dirty; crash recovery is offered on next launch.
 - If the design changes after a calculation, the status shows **Calculations outdated**.
 - Export with validation **errors** requires an explicit acknowledgment.
 - **Rebuild circuits from plan** (Electrical panel) re-groups devices; it replaces the circuit list.
 - AI design is optional (API key in local secrets store or env). Offline rules always work.
+- Telemetry is **off by default** (Tools → Telemetry opt-in); never sends floor plans.
 - **Help → About** shows standards stamp and whether the build is signed.
 
 ---

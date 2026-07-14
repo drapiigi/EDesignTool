@@ -166,6 +166,7 @@ public class DrawingToolbar {
             case DOOR -> "Place door on a wall";
             case WINDOW -> "Place window on a wall";
             case PLACE_DEVICE -> "Legacy place mode — prefer drag from symbol library";
+            case CALIBRATE_SCALE -> "Calibrate background scale: click two points of a known length, enter real size";
         };
     }
 }

@@ -22,6 +22,12 @@ public class AppMenuBar {
     public AppMenuBar(MainWindow window) {
         Menu file = new Menu("_File");
         MenuItem newItem = item("_New Project", KeyCode.N, true, window::newProject);
+        Menu templateMenu = new Menu("New from _Template");
+        templateMenu.getItems().addAll(
+                item("_1-Bed Bungalow", null, false, window::newFromTemplateOneBed),
+                item("_3-Bed Bungalow", null, false, window::newFromTemplateThreeBed),
+                item("_2-Storey House", null, false, window::newFromTemplateTwoStorey)
+        );
         MenuItem openItem = item("_Open…", KeyCode.O, true, window::openProject);
         MenuItem saveItem = item("_Save", KeyCode.S, true, window::saveProject);
         MenuItem saveAsItem = item("Save _As…", null, false, window::saveProjectAs);
@@ -31,7 +37,7 @@ public class AppMenuBar {
         MenuItem exportBoqExcel = item("Export _BOQ (Excel)…", null, false, window::exportBoqExcel);
         MenuItem exitItem = item("E_xit", KeyCode.Q, true, window::quit);
         file.getItems().addAll(
-                newItem, openItem, saveItem, saveAsItem, savePackageItem,
+                newItem, templateMenu, openItem, saveItem, saveAsItem, savePackageItem,
                 new SeparatorMenuItem(),
                 importItem,
                 exportPdf,
@@ -105,26 +111,42 @@ public class AppMenuBar {
                 item("Tool: _Door", null, false, () -> window.setTool(DrawTool.DOOR)),
                 item("Tool: Windo_w", null, false, () -> window.setTool(DrawTool.WINDOW)),
                 item("Tool: _Pan", null, false, () -> window.setTool(DrawTool.PAN)),
+                item("Tool: Calibrate _Scale", null, false, window::calibrateBackgroundScale),
                 new SeparatorMenuItem(),
                 item("Reload symbol _library", null, false, window::showComponentLibrary)
         );
 
         Menu tools = new Menu("_Tools");
+        CheckMenuItem telemetry = new CheckMenuItem("Telemetry _opt-in (no floor plans)");
+        telemetry.setSelected(false);
+        telemetry.setOnAction(e -> window.toggleTelemetryOptIn());
         tools.getItems().addAll(
                 item("_Recalculate Loads", KeyCode.R, true, window::recalculateLoads),
                 item("_Validate Standards (L.I. 2008)", KeyCode.L, true, window::validateStandards),
                 item("Generate _Wiring Routes", null, false, window::generateWiringRoutes),
                 new SeparatorMenuItem(),
-                item("Component _Library", null, false, window::showComponentLibrary),
+                item("Calibrate background _scale…", null, false, window::calibrateBackgroundScale),
+                item("CAD _command line", KeyCode.SEMICOLON, true, window::focusCommandLine),
                 new SeparatorMenuItem(),
-                item("AI _Co-pilot Chat…", null, false, window::aiCopilotChat)
+                item("Component _Library", null, false, window::showComponentLibrary),
+                item("_Price book…", null, false, window::showPriceBook),
+                new SeparatorMenuItem(),
+                item("AI _Co-pilot Chat…", null, false, window::aiCopilotChat),
+                telemetry
         );
 
         Menu help = new Menu("_Help");
         MenuItem sample = item("Open Sample _3-Bed House", null, false, window::openSampleThreeBedHouse);
+        Menu samplesMenu = new Menu("Open sample / template");
+        samplesMenu.getItems().addAll(
+                item("_1-Bed Bungalow", null, false, window::newFromTemplateOneBed),
+                item("_3-Bed Bungalow", null, false, window::openSampleThreeBedHouse),
+                item("_2-Storey House", null, false, window::newFromTemplateTwoStorey)
+        );
         MenuItem guide = item("_Quick start…", null, false, window::showUserGuide);
+        MenuItem keys = item("_Keyboard shortcuts…", null, false, window::showKeyboardCheatSheet);
         MenuItem about = item("_About GhanaWire AI", null, false, window::showAbout);
-        help.getItems().addAll(sample, guide, new SeparatorMenuItem(), about);
+        help.getItems().addAll(sample, samplesMenu, guide, keys, new SeparatorMenuItem(), about);
 
         menuBar = new MenuBar(file, edit, view, design, tools, help);
         menuBar.setUseSystemMenuBar(false);

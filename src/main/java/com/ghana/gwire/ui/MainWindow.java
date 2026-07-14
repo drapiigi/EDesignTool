@@ -3,14 +3,17 @@ package com.ghana.gwire.ui;
 import com.ghana.gwire.GWireApp;
 import com.ghana.gwire.ai.AiDesignPlan;
 import com.ghana.gwire.ai.AiDesignService;
+import com.ghana.gwire.ai.AiPreviewSession;
 import com.ghana.gwire.ai.AiSettings;
 import com.ghana.gwire.ai.vision.VisionFloorPlanResult;
 import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
+import com.ghana.gwire.service.cad.CadCommandParser;
 import com.ghana.gwire.service.calc.CalcEngine;
 import com.ghana.gwire.service.calc.CalcSessionState;
 import com.ghana.gwire.service.prefs.UserPrefs;
+import com.ghana.gwire.service.telemetry.TelemetryService;
 import com.ghana.gwire.service.update.UpdateCheckService;
 import com.ghana.gwire.samples.SampleProjectFactory;
 import com.ghana.gwire.service.export.BoqExcelExportService;
@@ -22,6 +25,7 @@ import com.ghana.gwire.service.sld.SingleLineDiagramBuilder;
 import com.ghana.gwire.service.wiring.WiringRouteService;
 import com.ghana.gwire.ui.canvas.DrawTool;
 import com.ghana.gwire.ui.canvas.FloorPlanWorkspace;
+import com.ghana.gwire.ui.dialogs.PriceBookDialog;
 import com.ghana.gwire.ui.menu.AppMenuBar;
 import com.ghana.gwire.ui.panels.BoqPanel;
 import com.ghana.gwire.ui.panels.CalcResultsPanel;
@@ -55,6 +59,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Primary application chrome: library, floor-plan, properties, calc, BOQ, status.
@@ -132,6 +137,9 @@ public class MainWindow {
         symbolLibraryPanel.setStatusSink(statusBar::setMessage);
         electricalPanel.setStatusSink(statusBar::setMessage);
         electricalPanel.setModelChanged(this::onModelChanged);
+        statusBar.setCommandHandler(this::handleCadCommand);
+        TelemetryService.get().setEnabled(this.userPrefs.isTelemetryOptIn());
+        TelemetryService.get().record(TelemetryService.EVENT_APP_START);
 
         SplitPane rightSplit = new SplitPane(
                 propertiesPanel.getRoot(),
@@ -728,6 +736,7 @@ public class MainWindow {
                 calcResultsPanel.showReport(report);
             }
             pdfExportService.export(project, path);
+            TelemetryService.get().record(TelemetryService.EVENT_EXPORT_PDF);
             boqPanel.refresh();
             refreshTitleAndStatus();
             statusBar.setMessage("Exported PDF: " + path.getFileName());
@@ -846,6 +855,7 @@ public class MainWindow {
             electricalPanel.refresh();
             boqPanel.refresh();
             refreshTitleAndStatus();
+            TelemetryService.get().record(TelemetryService.EVENT_CALC_RUN);
             statusBar.setMessage(String.format(
                     "Calculation complete · %.0f W after diversity · %.1f A · %d circuit(s) · %d error(s), %d warning(s) · %s",
                     report.totalAfterDiversityW(),
@@ -1113,10 +1123,11 @@ public class MainWindow {
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
             confirm.initOwner(stage);
             confirm.setTitle("AI Generate Design");
-            confirm.setHeaderText("Replace existing devices?");
+            confirm.setHeaderText("Replace existing devices when accepting?");
             confirm.setContentText(
-                    "Yes = clear current devices and apply the new plan.\n"
-                            + "No = append placements.\n"
+                    "Ghost preview will not change the plan until you Accept.\n\n"
+                            + "Yes = clear current devices on accept.\n"
+                            + "No = append selected placements on accept.\n"
                             + "Cancel = abort."
             );
             confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
@@ -1135,29 +1146,84 @@ public class MainWindow {
             AiDesignPlan plan = rulesOnly
                     ? ai.generateRulesOnly(project, LibraryBootstrap.get())
                     : ai.generate(project, LibraryBootstrap.get());
-            // Snapshot for undo
-            workspace.getHistory().push(project.floorPlan());
-            int n = ai.apply(project, plan, clear);
-            workspace.getCanvas().redraw();
-            onModelChanged();
-            refreshSelection();
-            statusBar.setMessage(String.format(
-                    "AI design applied: %d device(s) · source=%s · %s · Ctrl+Z to undo",
-                    n, plan.source(), plan.providerDetail()
-            ));
-            Alert info = new Alert(Alert.AlertType.INFORMATION);
-            info.initOwner(stage);
-            info.setTitle("AI Generate Design");
-            info.setHeaderText(String.format("%d placements · %s", n, plan.source()));
-            String body = plan.notes()
-                    + "\n\nTip: Tools → Recalculate Loads to size cables and validate L.I. 2008 checks.";
-            if (body.length() > 1400) {
-                body = body.substring(0, 1400) + "\n…";
+            if (plan.isEmpty()) {
+                statusBar.setMessage("AI returned no placements.");
+                return;
             }
-            info.setContentText(body);
-            info.showAndWait();
+            // Non-destructive ghost preview (Phase 15)
+            AiPreviewSession session = new AiPreviewSession(plan, clear);
+            workspace.getCanvas().setAiPreview(session);
+            workspace.getCanvas().setTool(DrawTool.SELECT);
+            statusBar.setMessage(String.format(
+                    "AI preview: %d ghost(s) · click to toggle · Accept/Reject in dialog · source=%s",
+                    plan.size(), plan.source()
+            ));
+
+            ButtonType accept = new ButtonType("Accept selected", ButtonBar.ButtonData.OK_DONE);
+            ButtonType reject = new ButtonType("Reject all", ButtonBar.ButtonData.CANCEL_CLOSE);
+            ButtonType all = new ButtonType("Select all", ButtonBar.ButtonData.OTHER);
+            ButtonType none = new ButtonType("Select none", ButtonBar.ButtonData.OTHER);
+            Alert preview = new Alert(Alert.AlertType.CONFIRMATION);
+            preview.initOwner(stage);
+            preview.setTitle("AI design preview");
+            preview.setHeaderText(String.format(
+                    "%d placements · %s · click ghosts on canvas to multi-select",
+                    plan.size(), plan.source()
+            ));
+            preview.setContentText(
+                    (plan.notes() == null ? "" : plan.notes())
+                            + "\n\nAccept applies only selected ghosts. Reject leaves the model untouched."
+            );
+            preview.getButtonTypes().setAll(accept, all, none, reject);
+
+            // Keep dialog open for select all/none
+            while (true) {
+                var choice = preview.showAndWait();
+                if (choice.isEmpty() || choice.get() == reject) {
+                    workspace.getCanvas().clearAiPreview();
+                    statusBar.setMessage("AI design rejected — model unchanged");
+                    return;
+                }
+                if (choice.get() == all) {
+                    session.selectAll();
+                    workspace.getCanvas().setAiPreview(session);
+                    preview.setHeaderText(String.format(
+                            "%d/%d selected · %s",
+                            session.selectedCount(), session.size(), plan.source()
+                    ));
+                    continue;
+                }
+                if (choice.get() == none) {
+                    session.selectNone();
+                    workspace.getCanvas().setAiPreview(session);
+                    preview.setHeaderText(String.format(
+                            "%d/%d selected · %s",
+                            session.selectedCount(), session.size(), plan.source()
+                    ));
+                    continue;
+                }
+                if (choice.get() == accept) {
+                    if (session.selectedCount() == 0) {
+                        statusBar.setMessage("No placements selected — nothing applied");
+                        workspace.getCanvas().clearAiPreview();
+                        return;
+                    }
+                    workspace.getHistory().push(project.floorPlan());
+                    int n = ai.apply(project, session.toFilteredPlan(), session.clearExistingDevices());
+                    workspace.getCanvas().clearAiPreview();
+                    workspace.getCanvas().redraw();
+                    onModelChanged();
+                    refreshSelection();
+                    statusBar.setMessage(String.format(
+                            "AI design accepted: %d device(s) · source=%s · Ctrl+Z to undo",
+                            n, plan.source()
+                    ));
+                    return;
+                }
+            }
         } catch (Exception ex) {
             log.error("AI design failed", ex);
+            workspace.getCanvas().clearAiPreview();
             statusBar.setMessage("AI design failed: " + ex.getMessage());
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.initOwner(stage);
@@ -1166,6 +1232,127 @@ public class MainWindow {
             alert.setContentText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
             alert.showAndWait();
         }
+    }
+
+    /** CAD command line (Phase 15): LINE, length, ORTHO, OSNAP. */
+    public void handleCadCommand(String raw) {
+        CadCommandParser.Result r = CadCommandParser.parse(raw);
+        switch (r.kind()) {
+            case HELP -> statusBar.setMessage(
+                    "Commands: LINE | 3500 | 3.5m | ORTHO ON/OFF | OSNAP ON/OFF | CANCEL | HELP"
+            );
+            case CANCEL -> {
+                workspace.getCanvas().setTool(DrawTool.SELECT);
+                statusBar.setMessage("Command cancelled");
+            }
+            case LINE -> {
+                setTool(DrawTool.WALL);
+                statusBar.setMessage("LINE: click start, then end — or click start and type length");
+            }
+            case ORTHO_ON -> {
+                setOrthoMode(true);
+                statusBar.setMessage("Ortho ON");
+            }
+            case ORTHO_OFF -> {
+                setOrthoMode(false);
+                statusBar.setMessage("Ortho OFF");
+            }
+            case OSNAP_ON -> {
+                setEndpointSnap(true);
+                statusBar.setMessage("Endpoint OSNAP ON");
+            }
+            case OSNAP_OFF -> {
+                setEndpointSnap(false);
+                statusBar.setMessage("Endpoint OSNAP OFF");
+            }
+            case LENGTH -> {
+                if (workspace.getCanvas().hasWallStart()) {
+                    boolean ok = workspace.getCanvas().completeWallWithLength(r.valueMm());
+                    if (ok) {
+                        onModelChanged();
+                    }
+                } else {
+                    statusBar.setMessage(String.format(
+                            "Length %.0f mm — start WALL/LINE first, then re-enter length",
+                            r.valueMm()
+                    ));
+                    setTool(DrawTool.WALL);
+                }
+            }
+            case UNKNOWN -> statusBar.setMessage(r.message());
+        }
+    }
+
+    public void focusCommandLine() {
+        statusBar.focusCommandLine();
+    }
+
+    public void calibrateBackgroundScale() {
+        if (project == null || project.floorPlan().background() == null) {
+            statusBar.setMessage("Import a floor plan background first (Import plan…)");
+            return;
+        }
+        setTool(DrawTool.CALIBRATE_SCALE);
+        statusBar.setMessage("Scale: click two points of a known length on the background");
+    }
+
+    public void showPriceBook() {
+        PriceBookDialog.show(stage);
+        boqPanel.refresh();
+        symbolLibraryPanel.reload();
+    }
+
+    public void toggleTelemetryOptIn() {
+        boolean next = !userPrefs.isTelemetryOptIn();
+        userPrefs.setTelemetryOptIn(next);
+        TelemetryService.get().setEnabled(next);
+        statusBar.setMessage(next
+                ? "Telemetry opt-in ON — only generic events (no floor plans)"
+                : "Telemetry OFF");
+    }
+
+    public void newFromTemplateOneBed() {
+        newFromTemplate(SampleProjectFactory::createOneBedBungalow, SampleProjectFactory.ONE_BED_NAME);
+    }
+
+    public void newFromTemplateThreeBed() {
+        newFromTemplate(SampleProjectFactory::createThreeBedBungalow, SampleProjectFactory.SAMPLE_NAME);
+    }
+
+    public void newFromTemplateTwoStorey() {
+        newFromTemplate(SampleProjectFactory::createTwoStoreyHouse, SampleProjectFactory.TWO_STOREY_NAME);
+    }
+
+    private void newFromTemplate(Supplier<Project> factory, String label) {
+        if (!promptUnsavedChanges()) {
+            return;
+        }
+        try {
+            Project loaded = factory.get();
+            applyProject(loaded, null, false, "New from template: " + label
+                    + " · " + loaded.totalRoomCount() + " room(s), "
+                    + loaded.totalDeviceCount() + " device(s)");
+        } catch (Exception ex) {
+            log.error("Template open failed", ex);
+            ErrorDialog.show(stage, "Could not create template project", ex);
+        }
+    }
+
+    private void applyProject(Project loaded, Path path, boolean isDirty, String status) {
+        project = loaded;
+        projectPath = path;
+        dirty = isDirty;
+        resetCalcSession();
+        workspace.bindProject(project);
+        propertiesPanel.setProject(project);
+        boqPanel.setProject(project);
+        electricalPanel.setProject(project);
+        calcResultsPanel.clear();
+        workspace.getCanvas().clearAiPreview();
+        workspace.getCanvas().fitToWindow();
+        refreshTitleAndStatus();
+        refreshSelection();
+        statusBar.setMessage(status);
     }
 
     /**
@@ -1356,20 +1543,63 @@ public class MainWindow {
         guide.setHeaderText(GWireApp.APP_NAME + " — quick start");
         guide.setContentText(
                 """
-                1. Help → Open Sample 3-Bed House (or File → New / Open)
-                2. Draw walls/rooms or import a plan image (File → Import)
+                1. File → New from Template (1-bed / 3-bed / 2-storey) or Help → Sample
+                2. Draw walls/rooms or import a plan · Tools → Calibrate scale if needed
                 3. Drag symbols from the library onto the plan
-                4. Tools → Recalculate Loads · Tools → Validate Standards
-                5. File → Export PDF Report or Export BOQ (Excel)
+                4. Tools → Recalculate Loads · review Electrical model panel
+                5. Design → AI Generate (ghost preview: Accept selected / Reject)
+                6. File → Export PDF Report or Export BOQ (Excel)
 
-                Pan: empty drag / Space+drag / two-finger scroll
-                Zoom: Ctrl+scroll or pinch · Fit: toolbar Fit
+                CAD: type LINE or a length (3500 / 3.5m) in the Cmd: field
+                Price book: Tools → Price book…
 
-                Full notes: docs/USER_GUIDE.md in the repository.
+                Full notes: docs/USER_GUIDE.md · shortcuts: Help → Keyboard shortcuts
                 Disclaimer: design aid only — CEWP verification required.
                 """
         );
         guide.showAndWait();
+    }
+
+    public void showKeyboardCheatSheet() {
+        Alert keys = new Alert(Alert.AlertType.INFORMATION);
+        keys.initOwner(stage);
+        keys.setTitle("Keyboard shortcuts");
+        keys.setHeaderText("GhanaWire CAD & app shortcuts");
+        keys.setContentText(
+                """
+                File
+                  Ctrl+N  New project          Ctrl+O  Open
+                  Ctrl+S  Save                 Ctrl+E  Export PDF
+                  Ctrl+I  Import floor plan    Ctrl+Q  Exit
+
+                Edit / view
+                  Ctrl+Z  Undo                 Ctrl+Y  Redo
+                  Delete  Delete selection
+                  Ctrl+=  Zoom in              Ctrl+-  Zoom out
+                  Ctrl+0  Fit to window
+
+                Design / tools
+                  Ctrl+G  AI generate (preview)
+                  Ctrl+R  Recalculate loads
+                  Ctrl+L  Validate standards
+                  Ctrl+;  Focus CAD command line
+
+                Canvas
+                  F8      Ortho on/off
+                  F3      Endpoint OSNAP
+                  Shift   Temporary ortho (wall)
+                  Space   Temporary pan
+                  Esc     Cancel in-progress draw
+
+                CAD command line (bottom)
+                  LINE / L     start wall tool
+                  3500 / 3.5m  complete wall length
+                  ORTHO ON|OFF · OSNAP ON|OFF · HELP
+
+                See docs/KEYBOARD.md for the full list.
+                """
+        );
+        keys.showAndWait();
     }
 
     public void quit() {

@@ -53,7 +53,7 @@ public final class AiSettings {
      * Missing file/env is fine — returns a disabled NONE configuration.
      */
     public static AiSettings load() {
-        SecretStore secrets = new SecretStore();
+        SecretStore secrets = SecretStore.local();
         secrets.migrateFromAiPropertiesIfNeeded();
 
         Properties props = new Properties();

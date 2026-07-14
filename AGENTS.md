@@ -251,9 +251,20 @@
 - UI: `ElectricalPanel` (Circuits / CU board / Cables / Checklist); device height + circuit in Properties
 - SLD ordered by CU ways; PDF checklist shows reviewed state
 
+### Done (Phase 15)
+
+- Scale calibration tool (`CALIBRATE_SCALE` → `BackgroundImage.mmPerPixel`)
+- Project templates: 1-bed, 3-bed, 2-storey (`SampleProjectFactory` + File → New from Template)
+- CAD command line MVP (`CadCommandParser` + StatusBar Cmd field: LINE / length / ORTHO / OSNAP)
+- Editable price book dialog (H2 `updateCost`)
+- AI ghost preview with multi-select Accept / Reject (`AiPreviewSession` — generators unchanged)
+- Keyboard cheat sheet (`docs/KEYBOARD.md` + Help menu)
+- Telemetry opt-in default OFF (`TelemetryService` — no floor plans)
+- `SecretStore` interface + `FileSecretStore` + stub `KeyringSecretStore`
+
 ### Open tasks / next program
 
-- **Next implement:** Phase 15 — product maturity (templates, scale calibration, price book, AI accept/reject) or 13b CAD stretch
+- **Next implement:** Phase 16 — scale architecture & GA 1.0 (or 13b CAD stretch)
 - Parallel: CEWP peer review of load tables; code signing for production
 - Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
 

@@ -1,5 +1,7 @@
 package com.ghana.gwire.ui.canvas;
 
+import com.ghana.gwire.ai.AiPreviewSession;
+import com.ghana.gwire.ai.DesignPlacement;
 import com.ghana.gwire.domain.components.ElectricalComponent;
 import com.ghana.gwire.domain.components.PlacedDevice;
 import com.ghana.gwire.domain.floorplan.BackgroundImage;
@@ -21,6 +23,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.image.Image;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.KeyCode;
@@ -39,6 +42,7 @@ import javafx.scene.text.TextAlignment;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -81,9 +85,15 @@ public class FloorPlanCanvas {
     private double panY = 48;
 
     private Vec2 wallStart;
+    /** First point of two-point scale calibration. */
+    private Vec2 calibrateStart;
     private Vec2 dragStartWorld;
     private Vec2 roomOrigin;
     private boolean panning;
+    /** Active AI ghost preview (non-destructive). */
+    private AiPreviewSession aiPreview;
+    private Consumer<AiPreviewSession> aiPreviewClickListener = s -> {
+    };
     private double panAnchorX;
     private double panAnchorY;
     private double panOriginX;
@@ -443,8 +453,10 @@ public class FloorPlanCanvas {
         if (cadSettings.isShowElectrical()) {
             drawWiringRoutes(g);
             drawDevices(g);
+            drawAiGhosts(g);
         }
         drawPreview(g);
+        drawCalibratePreview(g);
         drawSnapMarker(g);
         if (dropHighlight) {
             CadStyle.applyCadStroke(g, 2.5);
@@ -554,7 +566,19 @@ public class FloorPlanCanvas {
             case DOOR -> placeOpening(world, OpeningType.DOOR, 900);
             case WINDOW -> placeOpening(world, OpeningType.WINDOW, 1200);
             case PLACE_DEVICE -> placePendingDevice(world);
+            case CALIBRATE_SCALE -> onCalibrateClick(world);
             case PAN -> beginPan(e.getX(), e.getY());
+        }
+        // Ghost toggle when SELECT + preview active
+        if (getTool() == DrawTool.SELECT && aiPreview != null) {
+            int hit = hitTestGhost(world);
+            if (hit >= 0) {
+                aiPreview.toggle(hit);
+                aiPreviewClickListener.accept(aiPreview);
+                status("Ghost " + (hit + 1) + " "
+                        + (aiPreview.isSelected(hit) ? "selected" : "deselected")
+                        + " · " + aiPreview.selectedCount() + "/" + aiPreview.size());
+            }
         }
         redraw();
     }
@@ -609,6 +633,9 @@ public class FloorPlanCanvas {
         if (getTool() == DrawTool.WALL && wallStart != null) {
             previewEnd = world;
             redraw();
+        } else if (getTool() == DrawTool.CALIBRATE_SCALE && calibrateStart != null) {
+            previewEnd = world;
+            redraw();
         } else if (getTool() == DrawTool.ROOM && roomOrigin != null) {
             roomPreviewCorner = world;
             redraw();
@@ -654,6 +681,9 @@ public class FloorPlanCanvas {
             if (wallStart != null) {
                 previewEnd = world;
             }
+            redraw();
+        } else if (getTool() == DrawTool.CALIBRATE_SCALE && calibrateStart != null) {
+            previewEnd = constrainPoint(raw, calibrateStart);
             redraw();
         } else if (cadSettings.isEndpointSnap() && getTool() != DrawTool.PAN) {
             // Update snap marker when hovering near endpoints
@@ -1104,6 +1134,7 @@ public class FloorPlanCanvas {
 
     private void cancelInProgress() {
         wallStart = null;
+        calibrateStart = null;
         previewEnd = null;
         roomOrigin = null;
         roomPreviewCorner = null;
@@ -1115,6 +1146,215 @@ public class FloorPlanCanvas {
             pendingComponent = null;
         }
         updateCursorForTool();
+    }
+
+    // --- Phase 15: scale calibration, length entry, AI ghosts ---
+
+    public boolean hasWallStart() {
+        return wallStart != null;
+    }
+
+    public Vec2 wallStartPoint() {
+        return wallStart;
+    }
+
+    public Vec2 wallPreviewEnd() {
+        return previewEnd;
+    }
+
+    /**
+     * Complete an in-progress wall using polar length from start toward current preview
+     * (or +X if no preview).
+     *
+     * @return true if a wall was committed
+     */
+    public boolean completeWallWithLength(double lengthMm) {
+        if (wallStart == null || lengthMm < 50) {
+            status("Start a wall first (LINE / Wall tool), then enter length ≥ 50 mm");
+            return false;
+        }
+        Vec2 dir;
+        if (previewEnd != null && wallStart.distanceTo(previewEnd) > 1e-3) {
+            dir = previewEnd.subtract(wallStart).normalize();
+        } else if (isOrthoActive()) {
+            dir = new Vec2(1, 0);
+        } else {
+            dir = new Vec2(1, 0);
+        }
+        Vec2 end = wallStart.add(dir.scale(lengthMm));
+        end = constrainPoint(end, wallStart);
+        // Re-apply exact length after constrain if ortho/grid shifted slightly
+        if (wallStart.distanceTo(end) > 1e-3) {
+            dir = end.subtract(wallStart).normalize();
+            end = wallStart.add(dir.scale(lengthMm));
+        }
+        commitWall(wallStart, end);
+        wallStart = null;
+        previewEnd = null;
+        snapMarker = null;
+        redraw();
+        return true;
+    }
+
+    /** Public wall commit for CAD commands (LINE from two points). */
+    public void addWall(Vec2 a, Vec2 b) {
+        commitWall(a, b);
+        redraw();
+    }
+
+    public void beginWallAt(Vec2 start) {
+        setTool(DrawTool.WALL);
+        wallStart = constrainPoint(start, null);
+        previewEnd = wallStart;
+        status("Wall: click end point or type length (mm) in command line");
+        redraw();
+    }
+
+    public void setAiPreview(AiPreviewSession session) {
+        this.aiPreview = session;
+        redraw();
+    }
+
+    public AiPreviewSession getAiPreview() {
+        return aiPreview;
+    }
+
+    public void clearAiPreview() {
+        this.aiPreview = null;
+        redraw();
+    }
+
+    public void setAiPreviewClickListener(Consumer<AiPreviewSession> listener) {
+        this.aiPreviewClickListener = listener == null ? s -> {
+        } : listener;
+    }
+
+    private void onCalibrateClick(Vec2 world) {
+        if (floorPlan.background() == null) {
+            status("Import a floor plan background first, then calibrate scale");
+            return;
+        }
+        if (calibrateStart == null) {
+            calibrateStart = world;
+            previewEnd = world;
+            status("Scale: click second point of a known length on the plan");
+            return;
+        }
+        Vec2 end = world;
+        double measuredMm = calibrateStart.distanceTo(end);
+        if (measuredMm < 1) {
+            status("Calibration points too close — try again");
+            calibrateStart = null;
+            previewEnd = null;
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog("3000");
+        dialog.setTitle("Calibrate background scale");
+        dialog.setHeaderText(String.format(Locale.ROOT,
+                "Measured segment: %.0f mm at current scale (%.2f mm/px)%nEnter the real-world length of this segment:",
+                measuredMm, floorPlan.background().mmPerPixel()));
+        dialog.setContentText("Length (mm or e.g. 3.5m):");
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get().isBlank()) {
+            status("Scale calibration cancelled");
+            calibrateStart = null;
+            previewEnd = null;
+            return;
+        }
+        Optional<Double> known = com.ghana.gwire.service.cad.CadCommandParser.parseLengthMm(result.get());
+        if (known.isEmpty() || known.get() <= 0) {
+            status("Invalid length — calibration cancelled");
+            calibrateStart = null;
+            previewEnd = null;
+            return;
+        }
+        double knownMm = known.get();
+        BackgroundImage bg = floorPlan.background();
+        double newMpp = bg.mmPerPixel() * (knownMm / measuredMm);
+        if (newMpp <= 0 || !Double.isFinite(newMpp)) {
+            status("Invalid scale result");
+            calibrateStart = null;
+            previewEnd = null;
+            return;
+        }
+        pushHistory();
+        bg.setMmPerPixel(newMpp);
+        fireModelChanged();
+        status(String.format(Locale.ROOT, "Background scale set to %.3f mm/px (known %.0f mm)", newMpp, knownMm));
+        calibrateStart = null;
+        previewEnd = null;
+        setTool(DrawTool.SELECT);
+    }
+
+    private int hitTestGhost(Vec2 world) {
+        if (aiPreview == null) {
+            return -1;
+        }
+        double tol = SymbolRenderer.hitRadiusMm(scale);
+        List<DesignPlacement> list = aiPreview.plan().placements();
+        int best = -1;
+        double bestD = tol;
+        for (int i = 0; i < list.size(); i++) {
+            DesignPlacement p = list.get(i);
+            double d = Math.hypot(p.xMm() - world.x(), p.yMm() - world.y());
+            if (d <= bestD) {
+                bestD = d;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private void drawAiGhosts(GraphicsContext g) {
+        if (aiPreview == null || aiPreview.size() == 0) {
+            return;
+        }
+        double size = SymbolRenderer.screenSize(scale);
+        double pad = size + 8;
+        double viewW = canvas.getWidth();
+        double viewH = canvas.getHeight();
+        List<DesignPlacement> list = aiPreview.plan().placements();
+        g.save();
+        for (int i = 0; i < list.size(); i++) {
+            DesignPlacement p = list.get(i);
+            double sx = worldToScreenX(p.xMm());
+            double sy = worldToScreenY(p.yMm());
+            if (sx < -pad || sy < -pad || sx > viewW + pad || sy > viewH + pad) {
+                continue;
+            }
+            boolean sel = aiPreview.isSelected(i);
+            g.setGlobalAlpha(sel ? 0.55 : 0.22);
+            SymbolRenderer.draw(g, p.symbolKey(), sx, sy, size, p.rotationDeg(), sel);
+            // Ghost ring
+            g.setGlobalAlpha(sel ? 0.85 : 0.4);
+            g.setStroke(sel ? Color.web("#00ffcc") : Color.web("#88aacc"));
+            g.setLineWidth(1.5);
+            g.setLineDashes(4, 3);
+            double r = size * 0.55;
+            g.strokeOval(sx - r, sy - r, r * 2, r * 2);
+            g.setLineDashes(null);
+        }
+        g.restore();
+    }
+
+    private void drawCalibratePreview(GraphicsContext g) {
+        if (getTool() != DrawTool.CALIBRATE_SCALE || calibrateStart == null || previewEnd == null) {
+            return;
+        }
+        g.setStroke(Color.web("#ffaa00"));
+        g.setLineWidth(2);
+        g.setLineDashes(8, 4);
+        g.strokeLine(
+                worldToScreenX(calibrateStart.x()), worldToScreenY(calibrateStart.y()),
+                worldToScreenX(previewEnd.x()), worldToScreenY(previewEnd.y())
+        );
+        g.setLineDashes(null);
+        double len = calibrateStart.distanceTo(previewEnd);
+        g.setFill(Color.web("#ffaa00"));
+        g.setFont(CadStyle.labelFont(12));
+        g.fillText(String.format(Locale.ROOT, "Calibrate: %.0f mm (current scale)", len),
+                worldToScreenX(previewEnd.x()) + 10,
+                worldToScreenY(previewEnd.y()) - 10);
     }
 
     private void status(String msg) {
