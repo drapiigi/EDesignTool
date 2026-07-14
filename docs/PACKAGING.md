@@ -1,6 +1,20 @@
-# Packaging GhanaWire AI
+# Packaging GhanaWire AI (beta 0.9)
 
-## Development run (recommended)
+## Artifact names
+
+| Platform | Path |
+|----------|------|
+| Linux app-image | `target/dist/linux/GhanaWireAI/` |
+| Linux versioned | `target/dist/linux/GhanaWireAI-0.9.0-linux-x64/` |
+| Linux tarball | `target/dist/linux/GhanaWireAI-linux-x64.tar.gz` |
+| Linux .deb | `target/dist/linux/*.deb` (**best-effort**) |
+| Windows app-image | `target/dist/windows/GhanaWireAI/` |
+| Windows versioned | `target/dist/windows/GhanaWireAI-0.9.0-windows-x64/` |
+| Windows MSI | `target/dist/windows/GhanaWireAI-0.9.0.msi` (**best-effort**, needs WiX) |
+
+Beta gate: **Linux app-image required**. Deb/MSI optional.
+
+## Development run
 
 ```bash
 cd /path/to/EDesignTool
@@ -12,77 +26,88 @@ mvn javafx:run
 
 ```bash
 mvn -DskipTests package
-java --enable-native-access=ALL-UNNAMED -jar target/gwire-designer-*-SNAPSHOT.jar
+java --enable-native-access=ALL-UNNAMED -jar target/gwire-designer-0.9.0.jar
 ```
 
-> JavaFX native libraries are platform-specific. On some systems the shaded jar may need the matching JavaFX native jars on the module path. Prefer `mvn javafx:run` or jpackage for end users.
+> JavaFX natives are platform-specific. Prefer `mvn javafx:run` for development and jpackage for end users.
 
-## Linux application image (jpackage)
+## Linux app-image (required for beta)
 
-Requires **JDK 21+** with `jpackage` (not a JRE-only install).
+Requires **JDK 21+** with `jpackage`.
 
 ```bash
 chmod +x scripts/package-linux.sh
 ./scripts/package-linux.sh
-# Output: target/dist/linux/GhanaWireAI/
+# Run: target/dist/linux/GhanaWireAI/bin/GhanaWireAI
 ```
 
-Optional Debian package:
+Optional `.deb` is attempted when `fakeroot` / `dpkg` tools exist; failure does not fail the script.
 
-```bash
-# After package-linux.sh prepared target/jpackage-input
-jpackage --type deb --name GhanaWireAI --app-version 0.1.0 \
-  --input target/jpackage-input --main-jar gwire-designer.jar \
-  --main-class com.ghana.gwire.Main --dest target/dist/linux
-```
-
-## Windows application image
+## Windows app-image
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-windows.ps1
-# Output: target\dist\windows\GhanaWireAI\
 ```
 
-Optional MSI: use `jpackage --type msi` with the same `--input` / `--main-jar` flags.
+### WiX (MSI best-effort)
 
-## Sample project
+| Need | Notes |
+|------|--------|
+| WiX Toolset 3.x or 4.x | On `PATH` (`candle`/`light` or `wix`) |
+| Without WiX | Script still ships **app-image**; MSI step is skipped with a warning |
 
-Bundled resource:
-
-- `src/main/resources/samples/ghana-3bed-house.gwire`
-
-In the app: **Help → Open Sample 3-Bed House**.
-
-Regenerate the sample file after factory changes:
-
-```bash
-mvn -q -DskipTests compile
-# use ProjectStore + SampleProjectFactory (see scripts or unit tests)
-```
-
-## Portable tarball / AppImage (Linux)
+## Portable tarball / AppImage
 
 ```bash
 ./scripts/package-appimage.sh
-# Always produces: target/dist/linux/GhanaWireAI-linux-x64.tar.gz
-# If appimagetool is installed: optional .AppImage (unsigned)
 ```
+
+## Unsigned beta
+
+Builds default to **unsigned**. The first-run dialog shows an unsigned notice.
+
+| Flag | Effect |
+|------|--------|
+| `-Dgwire.build.signed=true` (JVM) | About dialog says signed |
+| `GWIRE_BUILD_SIGNED=true` (packaging env) | Passed into packaged app |
+
+Publish **SHA-256 checksums** next to release artifacts when available.
 
 ## Code signing (optional)
 
-Signing requires **your** certificates — the repo does not include secrets.
-
 | Platform | Tooling |
 |----------|---------|
-| Windows MSI/EXE | `signtool` / Azure Trusted Signing after `jpackage --type msi` |
-| macOS | `jpackage --mac-sign` with Developer ID |
-| Linux .deb | `debsigs` / package maintainer keys |
+| Windows | `signtool` / Azure Trusted Signing after MSI |
+| macOS | `jpackage --mac-sign` (not in beta gate) |
+| Linux .deb | `debsigs` |
 
-Unsigned app-images and tarballs are fine for internal demos.
+## Update check
 
-## Notes
+App fetches `docs/release/version.json` (override with `GWIRE_UPDATE_URL` or prefs).
 
-- Component library is created at first run under `~/.gwire/library`
-- AI keys: `~/.gwire/ai.properties` or `GWIRE_AI_API_KEY` (never commit)
-- PDF/Excel export requires a writable destination folder
-- Multi-storey projects use `.gwire` format **1.1** (1.0 files still open)
+```json
+{ "latest": "0.9.1", "notes": "…", "url": "https://github.com/drapiigi/EDesignTool/releases" }
+```
+
+Non-blocking: status bar message only.
+
+## QA smoke matrix
+
+| Step | Action |
+|------|--------|
+| 1 | Launch app-image (Ubuntu LTS or Windows 10/11) |
+| 2 | Accept first-run disclaimer |
+| 3 | Help → Open Sample 3-Bed House |
+| 4 | Tools → Recalculate Loads |
+| 5 | File → Export PDF Report |
+| 6 | File → Save as `.gwire` |
+
+## Sample project
+
+Bundled: `src/main/resources/samples/ghana-3bed-house.gwire`  
+In app: **Help → Open Sample 3-Bed House**.
+
+## CI package job (example)
+
+Copy [`docs/ci/package.yml.example`](ci/package.yml.example) to `.github/workflows/package.yml` when your GitHub token has the `workflow` scope.
+

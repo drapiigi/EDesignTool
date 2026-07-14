@@ -103,8 +103,9 @@ public class AppMenuBar {
 
         Menu help = new Menu("_Help");
         MenuItem sample = item("Open Sample _3-Bed House", null, false, window::openSampleThreeBedHouse);
+        MenuItem guide = item("_Quick start…", null, false, window::showUserGuide);
         MenuItem about = item("_About GhanaWire AI", null, false, window::showAbout);
-        help.getItems().addAll(sample, new SeparatorMenuItem(), about);
+        help.getItems().addAll(sample, guide, new SeparatorMenuItem(), about);
 
         menuBar = new MenuBar(file, edit, view, design, tools, help);
         menuBar.setUseSystemMenuBar(false);

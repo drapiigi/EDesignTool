@@ -98,7 +98,8 @@ public final class PdfExportService {
             y = line(cs, "Supply: " + project.supplySummary(), y - 4);
             y = line(cs, "House type: " + project.settings().houseType(), y - 4);
             y = line(cs, "Standards pack: " + (report.standardsEdition().isBlank()
-                    ? project.settings().standardsEdition() : report.standardsEdition()), y - 4);
+                    ? project.settings().standardsEdition() : report.standardsEdition())
+                    + " · app " + com.ghana.gwire.GWireApp.APP_VERSION, y - 4);
             if (report.calculatedAtExport()) {
                 y = line(cs, "Note: Calculated at export (" + report.calculatedAt() + ")", y - 4);
             }

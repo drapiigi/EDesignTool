@@ -15,8 +15,15 @@ if [[ ! -d "${APP_DIR}" ]]; then
 fi
 
 OUT="target/dist/linux"
-TAR="${OUT}/GhanaWireAI-linux-x64.tar.gz"
-tar -czf "${TAR}" -C "${OUT}" GhanaWireAI
+VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version 2>/dev/null || echo "0.9.0")
+APP_VERSION="${VERSION//-SNAPSHOT/}"
+TAR="${OUT}/GhanaWireAI-${APP_VERSION}-linux-x64.tar.gz"
+# Prefer versioned directory if package-linux created it
+SOURCE_DIR="GhanaWireAI"
+if [[ -d "${OUT}/GhanaWireAI-${APP_VERSION}-linux-x64" ]]; then
+  SOURCE_DIR="GhanaWireAI-${APP_VERSION}-linux-x64"
+fi
+tar -czf "${TAR}" -C "${OUT}" "${SOURCE_DIR}"
 echo "Portable archive: ${TAR}"
 
 if command -v appimagetool >/dev/null 2>&1; then

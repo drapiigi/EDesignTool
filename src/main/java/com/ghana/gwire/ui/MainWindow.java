@@ -10,6 +10,8 @@ import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
 import com.ghana.gwire.service.calc.CalcSessionState;
+import com.ghana.gwire.service.prefs.UserPrefs;
+import com.ghana.gwire.service.update.UpdateCheckService;
 import com.ghana.gwire.samples.SampleProjectFactory;
 import com.ghana.gwire.service.export.BoqExcelExportService;
 import com.ghana.gwire.service.export.PdfExportService;
@@ -29,6 +31,7 @@ import com.ghana.gwire.ui.panels.SymbolLibraryPanel;
 import com.ghana.gwire.ui.theme.ThemeManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
@@ -61,6 +64,7 @@ public class MainWindow {
 
     private final Stage stage;
     private final ThemeManager themeManager;
+    private final UserPrefs userPrefs;
     private final BorderPane root;
     private final StatusBar statusBar;
     private final FloorPlanWorkspace workspace;
@@ -88,8 +92,13 @@ public class MainWindow {
     private boolean exportWithErrorsAcknowledged;
 
     public MainWindow(Stage stage, ThemeManager themeManager) {
+        this(stage, themeManager, new UserPrefs());
+    }
+
+    public MainWindow(Stage stage, ThemeManager themeManager, UserPrefs userPrefs) {
         this.stage = stage;
         this.themeManager = themeManager;
+        this.userPrefs = userPrefs == null ? new UserPrefs() : userPrefs;
         this.statusBar = new StatusBar();
         this.workspace = new FloorPlanWorkspace();
         this.propertiesPanel = new PropertiesPanel();
@@ -162,7 +171,27 @@ public class MainWindow {
                 "Ready · Help → Open Sample 3-Bed House · File → Export PDF/Excel ("
                         + count + " catalogue items)."
         );
-        statusBar.setSecondary("Standards: Ghana L.I. 2008 · 230 V / 50 Hz");
+        statusBar.setSecondary(GWireApp.standardsStamp() + " · 230 V / 50 Hz");
+    }
+
+    /** Background HTTPS version check (non-blocking banner). */
+    public void startBackgroundUpdateCheck() {
+        new UpdateCheckService(userPrefs).checkAsync().thenAccept(opt -> {
+            if (opt.isEmpty()) {
+                return;
+            }
+            UpdateCheckService.UpdateInfo info = opt.get();
+            Platform.runLater(() -> {
+                statusBar.setSecondary(
+                        "Update available: " + info.latestVersion()
+                                + " — " + info.releaseUrl()
+                                + "  ·  " + GWireApp.standardsStamp()
+                );
+                statusBar.setMessage(
+                        "A newer version (" + info.latestVersion() + ") is available. See status bar for link."
+                );
+            });
+        });
     }
 
     private void startAutosaveTimer() {
@@ -1264,26 +1293,52 @@ public class MainWindow {
         about.setHeaderText(GWireApp.APP_NAME + " (" + GWireApp.APP_SHORT_NAME + ")");
         about.setContentText(
                 """
-                Version: %s
+                Version: %s (beta)
 
-                AI-assisted electrical wiring design for Ghana.
-                Targets Ghana Electrical Wiring Regulations 2011 (L.I. 2008),
-                Energy Commission guidelines, and Ghana Standards.
+                %s
+
+                AI-assisted electrical wiring design for Ghana households.
+                Preliminary design aid only — a CEWP must verify real installations.
 
                 Stack: Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI
+                Licence: see LICENSE in the project repository.
+                Build: %s
 
-                Phases 1-8 complete: shell, floor plan, library, calc, AI/vision,
-                save/load, PDF/Excel export, sample project and packaging scripts.
-
-                Catalogue: %d items. AI: %s
-                Help → Open Sample 3-Bed House
+                Catalogue: %d items · AI: %s
+                Docs: docs/USER_GUIDE.md · Help → Open Sample 3-Bed House
+                Releases: https://github.com/drapiigi/EDesignTool/releases
                 """.formatted(
                         GWireApp.APP_VERSION,
+                        GWireApp.standardsStamp(),
+                        userPrefs.isBuildSigned() ? "signed" : "unsigned beta",
                         n,
                         AiSettings.load().isLlmAvailable() ? "LLM ready" : "rules only (no API key)"
                 )
         );
         about.showAndWait();
+    }
+
+    public void showUserGuide() {
+        Alert guide = new Alert(Alert.AlertType.INFORMATION);
+        guide.initOwner(stage);
+        guide.setTitle("Quick start");
+        guide.setHeaderText(GWireApp.APP_NAME + " — quick start");
+        guide.setContentText(
+                """
+                1. Help → Open Sample 3-Bed House (or File → New / Open)
+                2. Draw walls/rooms or import a plan image (File → Import)
+                3. Drag symbols from the library onto the plan
+                4. Tools → Recalculate Loads · Tools → Validate Standards
+                5. File → Export PDF Report or Export BOQ (Excel)
+
+                Pan: empty drag / Space+drag / two-finger scroll
+                Zoom: Ctrl+scroll or pinch · Fit: toolbar Fit
+
+                Full notes: docs/USER_GUIDE.md in the repository.
+                Disclaimer: design aid only — CEWP verification required.
+                """
+        );
+        guide.showAndWait();
     }
 
     public void quit() {

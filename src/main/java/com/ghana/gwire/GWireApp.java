@@ -1,8 +1,11 @@
 package com.ghana.gwire;
 
 import com.ghana.gwire.db.LibraryBootstrap;
+import com.ghana.gwire.service.calc.AssumptionCodes;
+import com.ghana.gwire.service.prefs.UserPrefs;
 import com.ghana.gwire.ui.ErrorDialog;
 import com.ghana.gwire.ui.MainWindow;
+import com.ghana.gwire.ui.dialogs.FirstRunDialog;
 import com.ghana.gwire.ui.theme.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -20,9 +23,15 @@ public class GWireApp extends Application {
 
     public static final String APP_NAME = "GhanaWire AI";
     public static final String APP_SHORT_NAME = "G-Wire Designer";
-    public static final String APP_VERSION = "0.5.0-SNAPSHOT";
+    /** Beta release line (Phase 12). */
+    public static final String APP_VERSION = "0.9.0";
 
     private MainWindow mainWindow;
+
+    /** Stamp for About / PDF: standards pack · app version. */
+    public static String standardsStamp() {
+        return AssumptionCodes.DEFAULT_STANDARDS_EDITION + " · app " + APP_VERSION;
+    }
 
     @Override
     public void start(Stage stage) {
@@ -37,6 +46,8 @@ public class GWireApp extends Application {
 
         log.info("Starting {} {} ({})", APP_NAME, APP_SHORT_NAME, APP_VERSION);
 
+        UserPrefs prefs = new UserPrefs();
+
         try {
             LibraryBootstrap.initialize();
         } catch (Exception e) {
@@ -44,18 +55,26 @@ public class GWireApp extends Application {
         }
 
         ThemeManager themeManager = new ThemeManager();
-        mainWindow = new MainWindow(stage, themeManager);
+        mainWindow = new MainWindow(stage, themeManager, prefs);
 
         Scene scene = new Scene(mainWindow.getRoot(), 1280, 800);
         themeManager.apply(scene);
 
-        stage.setTitle(APP_NAME + " — " + APP_SHORT_NAME);
+        stage.setTitle(APP_NAME + " — " + APP_SHORT_NAME + " " + APP_VERSION);
         stage.setMinWidth(960);
         stage.setMinHeight(600);
         stage.setScene(scene);
         stage.show();
 
-        Platform.runLater(() -> mainWindow.checkCrashRecovery());
+        Platform.runLater(() -> {
+            if (!FirstRunDialog.ensureAccepted(stage, prefs)) {
+                log.info("User declined first-run disclaimer — exiting");
+                Platform.exit();
+                return;
+            }
+            mainWindow.checkCrashRecovery();
+            mainWindow.startBackgroundUpdateCheck();
+        });
 
         log.info("UI ready");
     }

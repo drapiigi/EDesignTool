@@ -1,0 +1,42 @@
+GhanaWire AI (G-Wire Designer) — Proprietary Beta License Notice
+================================================================
+
+Copyright (c) 2026 GhanaWire AI contributors.
+All rights reserved.
+
+This software is provided as a PRELIMINARY BETA design aid for household
+electrical wiring planning in the context of Ghana Electrical Wiring
+Regulations 2011 (L.I. 2008) and related practice guidance.
+
+1. PERMITTED USE
+   You may install and use this beta software for evaluation, education,
+   and preliminary design work.
+
+2. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+3. NO LIABILITY FOR ELECTRICAL WORK
+   Outputs (load calculations, cable sizes, validation messages, BOQ, PDF
+   reports, AI suggestions) are simplified engineering heuristics. They are
+   NOT a substitute for design or certification by a Competent Electrical
+   Wiring Professional (CEWP) or licensed electrician. The authors and
+   distributors accept NO LIABILITY for injury, property damage, regulatory
+   non-compliance, or financial loss arising from use of this software.
+
+4. THIRD-PARTY COMPONENTS
+   This product includes open-source libraries (including but not limited to
+   JavaFX, H2, Apache PDFBox, Apache POI, Jackson, SLF4J/Logback) under their
+   respective licenses. Those licenses apply to those components only.
+
+5. DISTRIBUTION
+   Redistribution of binary builds should retain this notice and the
+   first-run disclaimer. Do not remove liability notices from the UI or PDF.
+
+6. FUTURE LICENSING
+   A production license (open source or commercial) may replace this beta
+   notice in a later release. Until then, treat this as proprietary beta
+   software with evaluation rights only.
+
+For questions: see the project repository https://github.com/drapiigi/EDesignTool

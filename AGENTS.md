@@ -62,7 +62,7 @@
 | 9 | Multi-storey, wiring routes, SLD, packaging polish | **Done** |
 | 10 | Production hardening: atomic save, autosave/recovery, SecretStore, exception handler, smoke tests | **Done** |
 | 11 | Calculation integrity: golden tests, assumption flags, calc state machine, export gates | **Done** |
-| 12 | Distribution + liability UX → **beta 0.9** (installers, disclaimers, standards stamp) | **Planned** |
+| 12 | Distribution + liability UX → **beta 0.9** (installers, disclaimers, standards stamp) | **Done** |
 | 13a | CAD minimum for GA (OSNAP/ortho, layers, command undo, basic plot) | **Planned** |
 | 13b | CAD stretch (DXF, full dims, grips) | **Stretch** |
 | 14 | Electrical model depth (circuits, CU board, cable schedule, SLD model) | **Planned** |
@@ -224,10 +224,19 @@
 - Golden harness + `src/test/resources/goldens/expected/sample-3bed.json`
 - `docs/calc/FORMULAS.md`
 
+### Done (Phase 12) — beta 0.9
+
+- Version **0.9.0**; `LICENSE` beta notice; `docs/USER_GUIDE.md`
+- First-run disclaimer + CEWP checkbox + unsigned beta notice (`FirstRunDialog`)
+- Update check (`UpdateCheckService` + `docs/release/version.json`)
+- Packaging scripts: versioned artifacts, optional deb/MSI, WiX notes
+- PDF/About standards stamp with app version
+- CI: `.github/workflows/package.yml` (test + linux app-image on tags)
+
 ### Open tasks / next program
 
-- **Next implement:** Phase 12 — distribution + liability UX → beta 0.9
-- Parallel: legal disclaimer copy, CEWP peer review of load tables, license choice
+- **Next implement:** Phase 13a — CAD minimum (ortho, OSNAP, layers, command undo)
+- Parallel: CEWP peer review of load tables; code signing for production
 - Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
 
 ---
