@@ -1,0 +1,282 @@
+{
+  "standardsEdition" : "L.I. 2008 practice tables v2026.1",
+  "supplyVoltageV" : 230.0,
+  "totalConnectedLoadW" : 13945.0,
+  "totalAfterDiversityW" : 6284.7,
+  "totalDesignCurrentA" : 27.32,
+  "diversityApplied" : 0.9,
+  "maxVoltageDropPercent" : 0.49,
+  "circuits" : [ {
+    "kind" : "COOKER",
+    "name" : "Cooker – Kitchen",
+    "connectedLoadW" : 7000.0,
+    "designCurrentA" : 30.43,
+    "diversityFactor" : 0.53,
+    "afterDiversityLoadW" : 3710.0,
+    "estimatedLengthM" : 3.34,
+    "recommendedCableSize" : "4mm²",
+    "recommendedBreakerA" : 32.0,
+    "voltageDropPercent" : 0.49,
+    "deviceCount" : 1
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Bathroom",
+    "connectedLoadW" : 15.0,
+    "designCurrentA" : 0.07,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 15.0,
+    "estimatedLengthM" : 22.63,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.02,
+    "deviceCount" : 2
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Bedroom 2",
+    "connectedLoadW" : 9.0,
+    "designCurrentA" : 0.04,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 9.0,
+    "estimatedLengthM" : 13.25,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.01,
+    "deviceCount" : 2
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Bedroom 3",
+    "connectedLoadW" : 9.0,
+    "designCurrentA" : 0.04,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 9.0,
+    "estimatedLengthM" : 8.88,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.0,
+    "deviceCount" : 2
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Dining",
+    "connectedLoadW" : 9.0,
+    "designCurrentA" : 0.04,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 9.0,
+    "estimatedLengthM" : 8.88,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.0,
+    "deviceCount" : 2
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Kitchen",
+    "connectedLoadW" : 9.0,
+    "designCurrentA" : 0.04,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 9.0,
+    "estimatedLengthM" : 4.81,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.0,
+    "deviceCount" : 2
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Living",
+    "connectedLoadW" : 18.0,
+    "designCurrentA" : 0.08,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 18.0,
+    "estimatedLengthM" : 13.64,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.01,
+    "deviceCount" : 3
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Master Bedroom",
+    "connectedLoadW" : 9.0,
+    "designCurrentA" : 0.04,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 9.0,
+    "estimatedLengthM" : 17.94,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.01,
+    "deviceCount" : 2
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Store",
+    "connectedLoadW" : 9.0,
+    "designCurrentA" : 0.04,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 9.0,
+    "estimatedLengthM" : 19.81,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.01,
+    "deviceCount" : 1
+  }, {
+    "kind" : "LIGHTING",
+    "name" : "Lighting – Veranda",
+    "connectedLoadW" : 18.0,
+    "designCurrentA" : 0.08,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 18.0,
+    "estimatedLengthM" : 14.19,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.01,
+    "deviceCount" : 2
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Bathroom",
+    "connectedLoadW" : 360.0,
+    "designCurrentA" : 1.57,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 360.0,
+    "estimatedLengthM" : 22.47,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.44,
+    "deviceCount" : 1
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Bedroom 2",
+    "connectedLoadW" : 720.0,
+    "designCurrentA" : 1.25,
+    "diversityFactor" : 0.4,
+    "afterDiversityLoadW" : 288.0,
+    "estimatedLengthM" : 11.72,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.19,
+    "deviceCount" : 2
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Bedroom 3",
+    "connectedLoadW" : 720.0,
+    "designCurrentA" : 1.25,
+    "diversityFactor" : 0.4,
+    "afterDiversityLoadW" : 288.0,
+    "estimatedLengthM" : 7.34,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.12,
+    "deviceCount" : 2
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Dining",
+    "connectedLoadW" : 720.0,
+    "designCurrentA" : 1.25,
+    "diversityFactor" : 0.4,
+    "afterDiversityLoadW" : 288.0,
+    "estimatedLengthM" : 10.19,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.16,
+    "deviceCount" : 2
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Kitchen",
+    "connectedLoadW" : 1440.0,
+    "designCurrentA" : 2.5,
+    "diversityFactor" : 0.4,
+    "afterDiversityLoadW" : 576.0,
+    "estimatedLengthM" : 6.14,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.19,
+    "deviceCount" : 4
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Living",
+    "connectedLoadW" : 1440.0,
+    "designCurrentA" : 2.5,
+    "diversityFactor" : 0.4,
+    "afterDiversityLoadW" : 576.0,
+    "estimatedLengthM" : 14.84,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.47,
+    "deviceCount" : 4
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Master Bedroom",
+    "connectedLoadW" : 1080.0,
+    "designCurrentA" : 1.88,
+    "diversityFactor" : 0.4,
+    "afterDiversityLoadW" : 432.0,
+    "estimatedLengthM" : 18.01,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.43,
+    "deviceCount" : 3
+  }, {
+    "kind" : "SOCKET",
+    "name" : "Sockets – Veranda",
+    "connectedLoadW" : 360.0,
+    "designCurrentA" : 1.57,
+    "diversityFactor" : 1.0,
+    "afterDiversityLoadW" : 360.0,
+    "estimatedLengthM" : 16.13,
+    "recommendedCableSize" : "1.5mm² T&E",
+    "recommendedBreakerA" : 6.0,
+    "voltageDropPercent" : 0.32,
+    "deviceCount" : 1
+  } ],
+  "issues" : [ {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  }, {
+    "severity" : "INFO",
+    "code" : "MCB_RECOMMEND"
+  } ],
+  "assumptions" : [ "CABLE_SIZE_FROM_CATALOGUE", "CABLE_VD_MAX_5_PERCENT", "COOKER_DEFAULT_7000W", "DIVERSITY_COOKER_BASE_10A_PLUS_0_3", "DIVERSITY_LIGHTING_1000_THEN_0_5", "DIVERSITY_OVERALL_0_9_GT_3_CIRCUITS", "DIVERSITY_SOCKET_MULTI_0_4", "LENGTH_FROM_DB_GEOMETRY", "LOAD_CATALOGUE_POWER_W", "MCB_NEXT_STANDARD_RATING", "SOCKET_ASSUMED_180W", "STANDARDS_HEURISTIC_LI2008" ]
+}

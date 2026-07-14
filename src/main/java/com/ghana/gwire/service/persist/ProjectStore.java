@@ -176,6 +176,7 @@ public final class ProjectStore {
         n.put("supplyType", s.supplyType().name());
         n.put("nominalVoltageV", s.nominalVoltageV());
         n.put("frequencyHz", s.frequencyHz());
+        n.put("standardsEdition", s.standardsEdition());
         return n;
     }
 
@@ -192,6 +193,9 @@ public final class ProjectStore {
             } catch (IllegalArgumentException e) {
                 log.warn("Unknown supplyType in project file, using default");
             }
+        }
+        if (n.hasNonNull("standardsEdition")) {
+            s.setStandardsEdition(n.get("standardsEdition").asText());
         }
     }
 

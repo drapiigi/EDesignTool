@@ -61,7 +61,7 @@
 | 8 | Packaging, polish, sample 3-bed house, docs | **Done** |
 | 9 | Multi-storey, wiring routes, SLD, packaging polish | **Done** |
 | 10 | Production hardening: atomic save, autosave/recovery, SecretStore, exception handler, smoke tests | **Done** |
-| 11 | Calculation integrity: golden tests, assumption flags, calc state machine, export gates | **Planned** |
+| 11 | Calculation integrity: golden tests, assumption flags, calc state machine, export gates | **Done** |
 | 12 | Distribution + liability UX → **beta 0.9** (installers, disclaimers, standards stamp) | **Planned** |
 | 13a | CAD minimum for GA (OSNAP/ortho, layers, command undo, basic plot) | **Planned** |
 | 13b | CAD stretch (DXF, full dims, grips) | **Stretch** |
@@ -215,9 +215,18 @@
 - Service smoke test: sample → calc → PDF
 - Docs: `docs/persist/FORMAT.md`
 
+### Done (Phase 11)
+
+- Assumption codes on every calc (`AssumptionCollector` / `AssumptionCodes`)
+- `DesignReport.assumptions()`, `standardsEdition`, `calculatedAtExport`
+- `CalcSessionState` (NONE / FRESH / DIRTY_CLEARED / ERRORS_PRESENT) + export gates
+- UI banner + assumptions list in calc panel; PDF stamps standards + assumptions
+- Golden harness + `src/test/resources/goldens/expected/sample-3bed.json`
+- `docs/calc/FORMULAS.md`
+
 ### Open tasks / next program
 
-- **Next implement:** Phase 11 — calc integrity (see `docs/ROADMAP-PRODUCTION.md`)
+- **Next implement:** Phase 12 — distribution + liability UX → beta 0.9
 - Parallel: legal disclaimer copy, CEWP peer review of load tables, license choice
 - Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
 

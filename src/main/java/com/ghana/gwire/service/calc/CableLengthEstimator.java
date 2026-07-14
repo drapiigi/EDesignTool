@@ -83,10 +83,21 @@ public final class CableLengthEstimator {
             List<Vec2> dbPositions,
             CircuitKind kind
     ) {
+        return estimateLengthM(devicePositions, dbPositions, kind, null);
+    }
+
+    public static double estimateLengthM(
+            List<Vec2> devicePositions,
+            List<Vec2> dbPositions,
+            CircuitKind kind,
+            AssumptionCollector assumptions
+    ) {
         if (devicePositions == null || devicePositions.isEmpty()) {
+            add(assumptions, AssumptionCodes.LENGTH_DEFAULT_FALLBACK);
             return defaultLengthM(kind);
         }
         if (dbPositions == null || dbPositions.isEmpty()) {
+            add(assumptions, AssumptionCodes.LENGTH_DEFAULT_FALLBACK);
             return defaultLengthM(kind);
         }
 
@@ -112,8 +123,10 @@ public final class CableLengthEstimator {
             }
         }
         if (n == 0) {
+            add(assumptions, AssumptionCodes.LENGTH_DEFAULT_FALLBACK);
             return defaultLengthM(kind);
         }
+        add(assumptions, AssumptionCodes.LENGTH_FROM_DB_GEOMETRY);
         double avgM = sumM / n;
         return avgM * ROUTING_FACTOR + ALLOWANCE_M;
     }
@@ -127,6 +140,16 @@ public final class CableLengthEstimator {
             List<Vec2> dbPositions,
             CircuitKind kind
     ) {
+        return estimateForDevices(plan, deviceIds, dbPositions, kind, null);
+    }
+
+    public static double estimateForDevices(
+            FloorPlan plan,
+            List<String> deviceIds,
+            List<Vec2> dbPositions,
+            CircuitKind kind,
+            AssumptionCollector assumptions
+    ) {
         Objects.requireNonNull(plan, "plan");
         List<Vec2> positions = new ArrayList<>();
         if (deviceIds != null) {
@@ -134,7 +157,13 @@ public final class CableLengthEstimator {
                 plan.findDevice(id).ifPresent(d -> positions.add(d.position()));
             }
         }
-        return estimateLengthM(positions, dbPositions, kind);
+        return estimateLengthM(positions, dbPositions, kind, assumptions);
+    }
+
+    private static void add(AssumptionCollector assumptions, String code) {
+        if (assumptions != null) {
+            assumptions.add(code);
+        }
     }
 
     public static double defaultLengthM(CircuitKind kind) {

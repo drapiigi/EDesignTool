@@ -53,7 +53,21 @@ public final class StandardsValidator {
             double totalDesignCurrentA,
             Map<String, ElectricalComponent> catalogue
     ) {
+        return validate(project, circuits, totalDesignCurrentA, catalogue, null);
+    }
+
+    public static List<ValidationIssue> validate(
+            Project project,
+            List<CircuitLoad> circuits,
+            double totalDesignCurrentA,
+            Map<String, ElectricalComponent> catalogue,
+            AssumptionCollector assumptions
+    ) {
         Objects.requireNonNull(project, "project");
+        if (assumptions != null) {
+            assumptions.add(AssumptionCodes.STANDARDS_HEURISTIC_LI2008);
+            assumptions.add(AssumptionCodes.MCB_NEXT_STANDARD_RATING);
+        }
         List<ValidationIssue> issues = new ArrayList<>();
         List<CircuitLoad> circs = circuits == null ? List.of() : circuits;
         Map<String, ElectricalComponent> cat = catalogue == null ? Map.of() : catalogue;

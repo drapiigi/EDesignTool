@@ -1,6 +1,7 @@
 package com.ghana.gwire.service.calc;
 
 import com.ghana.gwire.db.ComponentLibraryService;
+import com.ghana.gwire.domain.calc.CircuitKind;
 import com.ghana.gwire.domain.calc.CircuitLoad;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.calc.Severity;
@@ -11,6 +12,7 @@ import com.ghana.gwire.domain.project.Project;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,42 +29,41 @@ import java.util.Optional;
  * They are <strong>not</strong> a substitute for manufacturer data, full installation-method
  * tables, or a Competent Electrical Wiring Professional (CEWP) design for real installations.
  *
- * <p>The engine stores nothing globally; callers may optionally persist the report via
- * {@link Project#setLastReport(DesignReport)}.
+ * <p>Each run records {@link AssumptionCodes} on the report and stamps
+ * {@link com.ghana.gwire.domain.project.ProjectSettings#standardsEdition()}.
  */
 public final class CalcEngine {
 
     public DesignReport calculate(Project project, ComponentLibraryService library) {
         Objects.requireNonNull(project, "project");
+        AssumptionCollector assumptions = new AssumptionCollector();
         DesignReport report = new DesignReport();
         report.setProjectName(project.name());
         report.setCalculatedAt(Instant.now());
         report.setSupplyVoltageV(project.settings().nominalVoltageV());
         report.setSupplyTypeSummary(project.supplySummary() + " · " + project.settings().supplyType());
+        report.setStandardsEdition(project.settings().standardsEdition());
 
         Map<String, ElectricalComponent> catalogue = loadCatalogue(library);
         List<ElectricalComponent> cables = catalogue.values().stream()
                 .filter(c -> c.category() == ComponentCategory.CABLE)
                 .toList();
 
-        List<CircuitLoad> circuits = CircuitBuilder.build(project, catalogue);
+        List<CircuitLoad> circuits = CircuitBuilder.build(project, catalogue, assumptions);
 
         double voltageV = project.settings().nominalVoltageV();
         if (voltageV <= 0) {
             voltageV = 230;
         }
 
-        // Diversity (mutates circuits; returns overall after-diversity W with whole-install factor)
         double totalConnected = circuits.stream().mapToDouble(CircuitLoad::connectedLoadW).sum();
-        double totalAfterDiv = DiversityCalculator.applyToCircuits(circuits, voltageV);
+        double totalAfterDiv = DiversityCalculator.applyToCircuits(circuits, voltageV, assumptions);
         double overallFactor = DiversityCalculator.overallInstallationFactor(circuits.size());
 
-        // Cable sizing + breaker recommendation
         double maxVdPct = 0;
         Map<String, DesignReport.CableBoqLine> boqAgg = new LinkedHashMap<>();
 
         for (CircuitLoad c : circuits) {
-            // Design current already set by diversity apply; ensure non-zero lighting/socket use after-div I
             if (c.designCurrentA() <= 0 && c.connectedLoadW() > 0) {
                 c.setDesignCurrentA(c.connectedLoadW() / voltageV);
             }
@@ -73,7 +74,8 @@ public final class CalcEngine {
                     voltageV,
                     CableSizer.DEFAULT_MAX_VD_PERCENT,
                     cables,
-                    c.kind()
+                    c.kind(),
+                    assumptions
             );
 
             if (sized.isPresent()) {
@@ -101,11 +103,12 @@ public final class CalcEngine {
             }
 
             double breaker = StandardsValidator.nextStandardBreakerA(c.designCurrentA());
-            // Socket circuits with design I > 20 A → prefer 32 A
-            if (c.kind() == com.ghana.gwire.domain.calc.CircuitKind.SOCKET
+            assumptions.add(AssumptionCodes.MCB_NEXT_STANDARD_RATING);
+            if (c.kind() == CircuitKind.SOCKET
                     && c.designCurrentA() > StandardsValidator.SOCKET_HIGH_CURRENT_A
                     && breaker < 32) {
                 breaker = 32;
+                assumptions.add(AssumptionCodes.SOCKET_BREAKER_PREFER_32A_GT_20A);
             }
             c.setRecommendedBreakerA(breaker);
 
@@ -116,6 +119,12 @@ public final class CalcEngine {
 
         double totalDesignCurrentA = totalAfterDiv / voltageV;
 
+        // Stable order for goldens and UI
+        circuits.sort(Comparator
+                .comparing((CircuitLoad c) -> c.kind().name())
+                .thenComparing(CircuitLoad::name)
+                .thenComparingDouble(CircuitLoad::connectedLoadW));
+
         report.setCircuits(circuits);
         report.setTotalConnectedLoadW(totalConnected);
         report.setTotalAfterDiversityW(totalAfterDiv);
@@ -125,18 +134,19 @@ public final class CalcEngine {
         report.setCableBoq(new ArrayList<>(boqAgg.values()));
 
         List<ValidationIssue> issues = StandardsValidator.validate(
-                project, circuits, totalDesignCurrentA, catalogue);
+                project, circuits, totalDesignCurrentA, catalogue, assumptions);
         report.setIssues(issues);
 
-        // Null/empty safety note
-        if (library == null && catalogue.isEmpty() && !project.floorPlan().devices().isEmpty()) {
+        if (library == null && catalogue.isEmpty() && project.totalDeviceCount() > 0) {
             report.addIssue(ValidationIssue.of(
                     Severity.WARNING,
                     "NO_LIBRARY",
                     "Component library was null or empty — loads and cable sizes may be incomplete."
             ));
+            assumptions.add(AssumptionCodes.NO_LIBRARY_WARNING);
         }
 
+        report.setAssumptions(assumptions.sorted());
         return report;
     }
 
@@ -153,23 +163,24 @@ public final class CalcEngine {
                 }
             }
         }
-        // Build a lightweight path without ComponentLibraryService
+        AssumptionCollector assumptions = new AssumptionCollector();
         DesignReport report = new DesignReport();
         report.setProjectName(project.name());
         report.setCalculatedAt(Instant.now());
         report.setSupplyVoltageV(project.settings().nominalVoltageV());
         report.setSupplyTypeSummary(project.supplySummary() + " · " + project.settings().supplyType());
+        report.setStandardsEdition(project.settings().standardsEdition());
 
         List<ElectricalComponent> cables = map.values().stream()
                 .filter(c -> c.category() == ComponentCategory.CABLE)
                 .toList();
 
-        List<CircuitLoad> circuits = CircuitBuilder.build(project, map);
+        List<CircuitLoad> circuits = CircuitBuilder.build(project, map, assumptions);
         double voltageV = project.settings().nominalVoltageV() > 0
                 ? project.settings().nominalVoltageV() : 230;
 
         double totalConnected = circuits.stream().mapToDouble(CircuitLoad::connectedLoadW).sum();
-        double totalAfterDiv = DiversityCalculator.applyToCircuits(circuits, voltageV);
+        double totalAfterDiv = DiversityCalculator.applyToCircuits(circuits, voltageV, assumptions);
         double overallFactor = DiversityCalculator.overallInstallationFactor(circuits.size());
         double maxVdPct = 0;
         Map<String, DesignReport.CableBoqLine> boqAgg = new LinkedHashMap<>();
@@ -184,7 +195,8 @@ public final class CalcEngine {
                     voltageV,
                     CableSizer.DEFAULT_MAX_VD_PERCENT,
                     cables,
-                    c.kind()
+                    c.kind(),
+                    assumptions
             );
             if (sized.isPresent()) {
                 CableSizer.CableSelection sel = sized.get();
@@ -206,16 +218,23 @@ public final class CalcEngine {
                 );
             }
             double breaker = StandardsValidator.nextStandardBreakerA(c.designCurrentA());
-            if (c.kind() == com.ghana.gwire.domain.calc.CircuitKind.SOCKET
+            assumptions.add(AssumptionCodes.MCB_NEXT_STANDARD_RATING);
+            if (c.kind() == CircuitKind.SOCKET
                     && c.designCurrentA() > StandardsValidator.SOCKET_HIGH_CURRENT_A
                     && breaker < 32) {
                 breaker = 32;
+                assumptions.add(AssumptionCodes.SOCKET_BREAKER_PREFER_32A_GT_20A);
             }
             c.setRecommendedBreakerA(breaker);
             if (c.voltageDropPercent() > maxVdPct) {
                 maxVdPct = c.voltageDropPercent();
             }
         }
+
+        circuits.sort(Comparator
+                .comparing((CircuitLoad c) -> c.kind().name())
+                .thenComparing(CircuitLoad::name)
+                .thenComparingDouble(CircuitLoad::connectedLoadW));
 
         double totalDesignCurrentA = totalAfterDiv / voltageV;
         report.setCircuits(circuits);
@@ -225,7 +244,11 @@ public final class CalcEngine {
         report.setDiversityApplied(overallFactor);
         report.setMaxVoltageDropPercent(maxVdPct);
         report.setCableBoq(new ArrayList<>(boqAgg.values()));
-        report.setIssues(StandardsValidator.validate(project, circuits, totalDesignCurrentA, map));
+        report.setIssues(StandardsValidator.validate(project, circuits, totalDesignCurrentA, map, assumptions));
+        if (map.isEmpty() && project.totalDeviceCount() > 0) {
+            assumptions.add(AssumptionCodes.NO_LIBRARY_WARNING);
+        }
+        report.setAssumptions(assumptions.sorted());
         return report;
     }
 

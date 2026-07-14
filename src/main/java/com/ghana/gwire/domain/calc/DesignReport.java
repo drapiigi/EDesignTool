@@ -38,7 +38,12 @@ public final class DesignReport {
     private final List<CircuitLoad> circuits = new ArrayList<>();
     private final List<ValidationIssue> issues = new ArrayList<>();
     private final List<CableBoqLine> cableBoq = new ArrayList<>();
+    private final List<String> assumptions = new ArrayList<>();
     private double maxVoltageDropPercent;
+    /** e.g. L.I. 2008 practice tables v2026.1 */
+    private String standardsEdition = "";
+    /** True when report was produced automatically at export time. */
+    private boolean calculatedAtExport;
 
     public String projectName() {
         return projectName;
@@ -175,12 +180,46 @@ public final class DesignReport {
         return errorCount() > 0;
     }
 
+    public List<String> assumptions() {
+        return Collections.unmodifiableList(assumptions);
+    }
+
+    public void setAssumptions(List<String> assumptions) {
+        this.assumptions.clear();
+        if (assumptions != null) {
+            this.assumptions.addAll(assumptions);
+        }
+    }
+
+    public void addAssumption(String code) {
+        if (code != null && !code.isBlank() && !assumptions.contains(code)) {
+            assumptions.add(code);
+        }
+    }
+
+    public String standardsEdition() {
+        return standardsEdition;
+    }
+
+    public void setStandardsEdition(String standardsEdition) {
+        this.standardsEdition = standardsEdition == null ? "" : standardsEdition;
+    }
+
+    public boolean calculatedAtExport() {
+        return calculatedAtExport;
+    }
+
+    public void setCalculatedAtExport(boolean calculatedAtExport) {
+        this.calculatedAtExport = calculatedAtExport;
+    }
+
     @Override
     public String toString() {
         return "DesignReport{" +
                 "project='" + projectName + '\'' +
                 ", circuits=" + circuits.size() +
                 ", issues=" + issues.size() +
+                ", assumptions=" + assumptions.size() +
                 ", totalW=" + totalAfterDiversityW +
                 '}';
     }

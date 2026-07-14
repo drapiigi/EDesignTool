@@ -70,8 +70,23 @@ public final class CableSizer {
             List<ElectricalComponent> cables,
             CircuitKind kind
     ) {
+        return size(designCurrentA, lengthM, voltageV, maxVdPercent, cables, kind, null);
+    }
+
+    public static Optional<CableSelection> size(
+            double designCurrentA,
+            double lengthM,
+            double voltageV,
+            double maxVdPercent,
+            List<ElectricalComponent> cables,
+            CircuitKind kind,
+            AssumptionCollector assumptions
+    ) {
         if (cables == null || cables.isEmpty() || designCurrentA < 0 || lengthM < 0) {
             return Optional.empty();
+        }
+        if (assumptions != null) {
+            assumptions.add(AssumptionCodes.CABLE_VD_MAX_5_PERCENT);
         }
         double maxVd = maxVdPercent > 0 ? maxVdPercent : DEFAULT_MAX_VD_PERCENT;
         double v = voltageV > 0 ? voltageV : 230.0;
@@ -114,16 +129,23 @@ public final class CableSizer {
         }
 
         if (best != null) {
+            if (assumptions != null) {
+                assumptions.add(AssumptionCodes.CABLE_SIZE_FROM_CATALOGUE);
+            }
             return Optional.of(best);
         }
 
         // Fallback: largest capacity cable even if Vd fails (caller can warn)
-        return candidates.stream()
+        Optional<CableSelection> fallback = candidates.stream()
                 .max(Comparator.comparingDouble(c -> c.crossSectionMm2()))
                 .map(cable -> {
                     double vd = voltageDropV(cable.voltageDropMvPerAm(), designCurrentA, lengthM);
                     return new CableSelection(cable, vd, voltageDropPercent(vd, v));
                 });
+        if (fallback.isPresent() && assumptions != null) {
+            assumptions.add(AssumptionCodes.CABLE_SIZE_FROM_CATALOGUE);
+        }
+        return fallback;
     }
 
     public static Optional<CableSelection> size(

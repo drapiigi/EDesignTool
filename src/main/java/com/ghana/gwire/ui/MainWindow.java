@@ -9,6 +9,7 @@ import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.service.calc.CalcEngine;
+import com.ghana.gwire.service.calc.CalcSessionState;
 import com.ghana.gwire.samples.SampleProjectFactory;
 import com.ghana.gwire.service.export.BoqExcelExportService;
 import com.ghana.gwire.service.export.PdfExportService;
@@ -80,6 +81,11 @@ public class MainWindow {
     private Project project;
     private Path projectPath;
     private boolean dirty;
+    /** Session-only calc freshness (not persisted). */
+    private CalcSessionState calcState = CalcSessionState.NONE;
+    private long projectModelRevision;
+    private long lastCalcModelRevision = -1;
+    private boolean exportWithErrorsAcknowledged;
 
     public MainWindow(Stage stage, ThemeManager themeManager) {
         this.stage = stage;
@@ -203,6 +209,7 @@ public class MainWindow {
                 project = loaded;
                 projectPath = null;
                 dirty = true;
+                resetCalcSession();
                 workspace.bindProject(project);
                 propertiesPanel.setProject(project);
                 boqPanel.setProject(project);
@@ -323,6 +330,7 @@ public class MainWindow {
         project = new Project(name);
         projectPath = null;
         dirty = false;
+        resetCalcSession();
         workspace.bindProject(project);
         propertiesPanel.setProject(project);
         boqPanel.setProject(project);
@@ -332,6 +340,84 @@ public class MainWindow {
         if (announce) {
             statusBar.setMessage("New project: " + project.name());
         }
+    }
+
+    private void resetCalcSession() {
+        calcState = CalcSessionState.NONE;
+        projectModelRevision = 0;
+        lastCalcModelRevision = -1;
+        exportWithErrorsAcknowledged = false;
+        calcResultsPanel.setSessionState(calcState, null);
+    }
+
+    private void markCalcFresh(DesignReport report) {
+        lastCalcModelRevision = projectModelRevision;
+        exportWithErrorsAcknowledged = false;
+        if (report != null && report.hasErrors()) {
+            calcState = CalcSessionState.ERRORS_PRESENT;
+        } else {
+            calcState = CalcSessionState.FRESH;
+        }
+        calcResultsPanel.setSessionState(calcState, report);
+    }
+
+    /**
+     * @return false if the user cancelled export
+     */
+    private boolean ensureCalcReadyForExport(boolean needCables) {
+        if (project == null) {
+            return false;
+        }
+        if (calcState == CalcSessionState.DIRTY_CLEARED
+                || (needCables && calcState == CalcSessionState.NONE)
+                || (needCables && project.lastReport() == null)) {
+            if (calcState == CalcSessionState.DIRTY_CLEARED) {
+                Alert ask = new Alert(Alert.AlertType.CONFIRMATION);
+                ask.initOwner(stage);
+                ask.setTitle("Calculations outdated");
+                ask.setHeaderText("Calculations outdated — recalculate?");
+                ask.setContentText("The design changed since the last calculation. Recalculate before export?");
+                ask.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+                var choice = ask.showAndWait();
+                if (choice.isEmpty() || choice.get() == ButtonType.CANCEL) {
+                    return false;
+                }
+                if (choice.get() == ButtonType.NO && !needCables) {
+                    return true;
+                }
+            }
+            try {
+                DesignReport report = calcEngine.calculate(project, LibraryBootstrap.get());
+                report.setCalculatedAtExport(true);
+                project.setLastReport(report);
+                markCalcFresh(report);
+                calcResultsPanel.showReport(report);
+                statusBar.setMessage("Calculated at export · " + report.calculatedAt());
+            } catch (Exception ex) {
+                ErrorDialog.show(stage, "Calculation failed", ex);
+                return false;
+            }
+        }
+        if (calcState == CalcSessionState.ERRORS_PRESENT
+                || (project.lastReport() != null && project.lastReport().hasErrors())) {
+            if (!exportWithErrorsAcknowledged) {
+                Alert ask = new Alert(Alert.AlertType.CONFIRMATION);
+                ask.initOwner(stage);
+                ask.setTitle("Validation errors");
+                ask.setHeaderText("Export with validation errors?");
+                int n = project.lastReport() == null ? 0 : project.lastReport().errorCount();
+                ask.setContentText(n + " error(s) present. A CEWP should resolve these before installation.");
+                ButtonType exportAnyway = new ButtonType("Export with errors", ButtonBar.ButtonData.YES);
+                ButtonType cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+                ask.getButtonTypes().setAll(exportAnyway, cancel);
+                var choice = ask.showAndWait();
+                if (choice.isEmpty() || choice.get() == cancel) {
+                    return false;
+                }
+                exportWithErrorsAcknowledged = true;
+            }
+        }
+        return true;
     }
 
     public void openProject() {
@@ -348,6 +434,7 @@ public class MainWindow {
             project = loaded;
             projectPath = file.toPath();
             dirty = false;
+            resetCalcSession();
             workspace.bindProject(project);
             propertiesPanel.setProject(project);
             boqPanel.setProject(project);
@@ -470,11 +557,18 @@ public class MainWindow {
         }
         dirty = true;
         project.touch();
+        projectModelRevision++;
         boqPanel.refresh();
         // Invalidate stale calc report when geometry/devices change (idempotent)
         if (project.lastReport() != null) {
             project.setLastReport(null);
             calcResultsPanel.clear();
+            calcState = CalcSessionState.DIRTY_CLEARED;
+            exportWithErrorsAcknowledged = false;
+            calcResultsPanel.setSessionState(calcState, null);
+        } else if (calcState == CalcSessionState.FRESH || calcState == CalcSessionState.ERRORS_PRESENT) {
+            calcState = CalcSessionState.DIRTY_CLEARED;
+            calcResultsPanel.setSessionState(calcState, null);
         }
         refreshTitleAndStatus();
     }
@@ -514,7 +608,7 @@ public class MainWindow {
         }
 
         boolean includeCables = true;
-        if (project.lastReport() == null) {
+        if (project.lastReport() == null || calcState == CalcSessionState.NONE) {
             Alert ask = new Alert(Alert.AlertType.CONFIRMATION);
             ask.initOwner(stage);
             ask.setTitle("Export BOQ (Excel)");
@@ -529,6 +623,9 @@ public class MainWindow {
                 return;
             }
             includeCables = choice.get() == ButtonType.YES;
+        }
+        if (!ensureCalcReadyForExport(includeCables)) {
+            return;
         }
 
         try {
@@ -580,12 +677,16 @@ public class MainWindow {
         if (!path.getFileName().toString().toLowerCase().endsWith(".pdf")) {
             path = path.resolveSibling(path.getFileName().toString() + ".pdf");
         }
+        if (!ensureCalcReadyForExport(true)) {
+            return;
+        }
         try {
             statusBar.setMessage("Exporting PDF report…");
-            // Ensure calc is current for schedule/BOQ/checklist
             if (project.lastReport() == null) {
                 DesignReport report = calcEngine.calculate(project, LibraryBootstrap.get());
+                report.setCalculatedAtExport(true);
                 project.setLastReport(report);
+                markCalcFresh(report);
                 calcResultsPanel.showReport(report);
             }
             pdfExportService.export(project, path);
@@ -701,18 +802,20 @@ public class MainWindow {
         try {
             DesignReport report = calcEngine.calculate(project, LibraryBootstrap.get());
             project.setLastReport(report);
+            markCalcFresh(report);
             calcResultsPanel.showReport(report);
             boqPanel.refresh();
             refreshTitleAndStatus();
             statusBar.setMessage(String.format(
-                    "Calculation complete · %.0f W after diversity · %.1f A · %d circuit(s) · %d error(s), %d warning(s)",
+                    "Calculation complete · %.0f W after diversity · %.1f A · %d circuit(s) · %d error(s), %d warning(s) · %s",
                     report.totalAfterDiversityW(),
                     report.totalDesignCurrentA(),
                     report.circuits().size(),
                     report.errorCount(),
-                    report.warningCount()
+                    report.warningCount(),
+                    report.standardsEdition()
             ));
-            log.info("Calc report: {}", report);
+            log.info("Calc report: {} assumptions={}", report, report.assumptions().size());
         } catch (Exception ex) {
             log.error("Calculation failed", ex);
             statusBar.setMessage("Calculation failed: " + ex.getMessage());
@@ -1116,6 +1219,7 @@ public class MainWindow {
             project = loaded;
             projectPath = null;
             dirty = false;
+            resetCalcSession();
             workspace.bindProject(project);
             propertiesPanel.setProject(project);
             boqPanel.setProject(project);
@@ -1132,6 +1236,7 @@ public class MainWindow {
                 project = SampleProjectFactory.createThreeBedBungalow();
                 projectPath = null;
                 dirty = false;
+                resetCalcSession();
                 workspace.bindProject(project);
                 propertiesPanel.setProject(project);
                 boqPanel.setProject(project);

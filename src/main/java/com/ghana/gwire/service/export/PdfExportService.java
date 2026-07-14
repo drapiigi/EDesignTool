@@ -97,6 +97,11 @@ public final class PdfExportService {
             y = line(cs, "Generated: " + LocalDateTime.now().format(TS), y - 8);
             y = line(cs, "Supply: " + project.supplySummary(), y - 4);
             y = line(cs, "House type: " + project.settings().houseType(), y - 4);
+            y = line(cs, "Standards pack: " + (report.standardsEdition().isBlank()
+                    ? project.settings().standardsEdition() : report.standardsEdition()), y - 4);
+            if (report.calculatedAtExport()) {
+                y = line(cs, "Note: Calculated at export (" + report.calculatedAt() + ")", y - 4);
+            }
             y = line(cs, String.format(Locale.ROOT,
                     "Storeys: %d · rooms: %d · devices: %d (all floors)",
                     project.storeys().size(),
@@ -111,6 +116,19 @@ public final class PdfExportService {
                     report.circuits().size(), report.maxVoltageDropPercent()), y - 4);
             y = line(cs, String.format(Locale.ROOT, "Validation: %d error(s), %d warning(s)",
                     report.errorCount(), report.warningCount()), y - 4);
+            if (!report.assumptions().isEmpty()) {
+                y -= 8;
+                y = section(cs, "Assumptions (codes)", y);
+                int shown = 0;
+                for (String code : report.assumptions()) {
+                    if (shown >= 12) {
+                        y = line(cs, "… +" + (report.assumptions().size() - shown) + " more (see app)", y - 3);
+                        break;
+                    }
+                    y = line(cs, "· " + code, y - 3);
+                    shown++;
+                }
+            }
             y -= 20;
             y = section(cs, "Contents", y);
             y = line(cs, "1. Cover & summary", y - 6);

@@ -35,6 +35,14 @@ public final class CircuitBuilder {
      * @return list of circuit loads (may be empty)
      */
     public static List<CircuitLoad> build(Project project, Map<String, ElectricalComponent> catalogue) {
+        return build(project, catalogue, null);
+    }
+
+    public static List<CircuitLoad> build(
+            Project project,
+            Map<String, ElectricalComponent> catalogue,
+            AssumptionCollector assumptions
+    ) {
         Objects.requireNonNull(project, "project");
         Map<String, ElectricalComponent> cat = catalogue == null ? Map.of() : catalogue;
         // Active plan used for length estimator geometry; devices come from all storeys
@@ -72,11 +80,11 @@ public final class CircuitBuilder {
             CircuitLoad cl = new CircuitLoad(label, special);
             cl.setRoomId(d.roomId());
             cl.addDeviceId(d.id());
-            double power = LoadTables.assumedPowerW(c, d);
+            double power = LoadTables.assumedPowerW(c, d, assumptions);
             cl.setConnectedLoadW(power);
             cl.setDesignCurrentA(designCurrentA(power, voltageV, project.settings().supplyType(), special));
             cl.setEstimatedLengthM(
-                    CableLengthEstimator.estimateForDevices(plan, List.of(d.id()), dbPositions, special));
+                    CableLengthEstimator.estimateForDevices(plan, List.of(d.id()), dbPositions, special, assumptions));
             circuits.add(cl);
             assigned.put(d.id(), true);
         }
@@ -123,7 +131,7 @@ public final class CircuitBuilder {
             for (PlacedDevice d : e.getValue()) {
                 ids.add(d.id());
                 positions.add(d.position());
-                power += LoadTables.assumedPowerW(cat.get(d.componentId()), d);
+                power += LoadTables.assumedPowerW(cat.get(d.componentId()), d, assumptions);
                 assigned.put(d.id(), true);
             }
             // Attach switches of same room (0 W load)
@@ -136,7 +144,7 @@ public final class CircuitBuilder {
             cl.setConnectedLoadW(power);
             cl.setDesignCurrentA(designCurrentA(power, voltageV, project.settings().supplyType(), CircuitKind.LIGHTING));
             cl.setEstimatedLengthM(
-                    CableLengthEstimator.estimateLengthM(positions, dbPositions, CircuitKind.LIGHTING));
+                    CableLengthEstimator.estimateLengthM(positions, dbPositions, CircuitKind.LIGHTING, assumptions));
             circuits.add(cl);
         }
 
@@ -161,14 +169,14 @@ public final class CircuitBuilder {
             for (PlacedDevice d : e.getValue()) {
                 ids.add(d.id());
                 positions.add(d.position());
-                power += LoadTables.assumedPowerW(cat.get(d.componentId()), d);
+                power += LoadTables.assumedPowerW(cat.get(d.componentId()), d, assumptions);
                 assigned.put(d.id(), true);
             }
             cl.addDeviceIds(ids);
             cl.setConnectedLoadW(power);
             cl.setDesignCurrentA(designCurrentA(power, voltageV, project.settings().supplyType(), CircuitKind.SOCKET));
             cl.setEstimatedLengthM(
-                    CableLengthEstimator.estimateLengthM(positions, dbPositions, CircuitKind.SOCKET));
+                    CableLengthEstimator.estimateLengthM(positions, dbPositions, CircuitKind.SOCKET, assumptions));
             circuits.add(cl);
         }
 
@@ -195,13 +203,13 @@ public final class CircuitBuilder {
             for (PlacedDevice d : e.getValue()) {
                 ids.add(d.id());
                 positions.add(d.position());
-                power += LoadTables.assumedPowerW(cat.get(d.componentId()), d);
+                power += LoadTables.assumedPowerW(cat.get(d.componentId()), d, assumptions);
             }
             cl.addDeviceIds(ids);
             cl.setConnectedLoadW(power);
             cl.setDesignCurrentA(designCurrentA(power, voltageV, project.settings().supplyType(), kind));
             cl.setEstimatedLengthM(
-                    CableLengthEstimator.estimateLengthM(positions, dbPositions, kind));
+                    CableLengthEstimator.estimateLengthM(positions, dbPositions, kind, assumptions));
             if (power > 0 || !ids.isEmpty()) {
                 circuits.add(cl);
             }

@@ -15,6 +15,8 @@ public final class ProjectSettings {
     private SupplyType supplyType = SupplyType.SINGLE_PHASE_230V;
     private double nominalVoltageV = 230;
     private double frequencyHz = 50;
+    /** Standards pack label stamped on DesignReport (not a full legal edition). */
+    private String standardsEdition = "L.I. 2008 practice tables v2026.1";
 
     public String houseType() {
         return houseType;
@@ -41,12 +43,23 @@ public final class ProjectSettings {
         return frequencyHz;
     }
 
+    public String standardsEdition() {
+        return standardsEdition;
+    }
+
+    public void setStandardsEdition(String standardsEdition) {
+        this.standardsEdition = standardsEdition == null || standardsEdition.isBlank()
+                ? "L.I. 2008 practice tables v2026.1"
+                : standardsEdition.trim();
+    }
+
     public ProjectSettings copy() {
         ProjectSettings s = new ProjectSettings();
         s.houseType = houseType;
         s.supplyType = supplyType;
         s.nominalVoltageV = nominalVoltageV;
         s.frequencyHz = frequencyHz;
+        s.standardsEdition = standardsEdition;
         return s;
     }
 }

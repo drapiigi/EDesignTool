@@ -46,7 +46,16 @@ public final class LoadTables {
      * @return assumed power in watts (≥ 0)
      */
     public static double assumedPowerW(ElectricalComponent component, PlacedDevice device) {
+        return assumedPowerW(component, device, null);
+    }
+
+    public static double assumedPowerW(
+            ElectricalComponent component,
+            PlacedDevice device,
+            AssumptionCollector assumptions
+    ) {
         if (component != null && component.powerW() != null && component.powerW() > 0) {
+            add(assumptions, AssumptionCodes.LOAD_CATALOGUE_POWER_W);
             return component.powerW();
         }
 
@@ -62,11 +71,13 @@ public final class LoadTables {
                 || id.contains("45a")
                 || (ratingA != null && ratingA >= 45 && category == ComponentCategory.SWITCH)
                 || symbol.contains("45a")) {
+            add(assumptions, AssumptionCodes.COOKER_DEFAULT_7000W);
             return COOKER_DEFAULT_W;
         }
 
         // Water heater
         if (lower.contains("heater") || lower.contains("geyser") || lower.contains("immersion")) {
+            add(assumptions, AssumptionCodes.WATER_HEATER_DEFAULT_3000W);
             return WATER_HEATER_DEFAULT_W;
         }
 
@@ -77,19 +88,21 @@ public final class LoadTables {
                 || containsAcToken(lower)
                 || symbol.contains("ac_")
                 || id.contains("-ac")) {
+            add(assumptions, AssumptionCodes.AC_DEFAULT_2500W);
             return AC_DEFAULT_W;
         }
 
         if (category == ComponentCategory.LIGHTING) {
             if (lower.contains("fluor") || symbol.contains("fluor")) {
+                add(assumptions, AssumptionCodes.FLUORESCENT_DEFAULT_36W);
                 return FLUORESCENT_DEFAULT_W;
             }
-            // LED or generic luminaire / ceiling rose → LED default
+            add(assumptions, AssumptionCodes.LED_DEFAULT_12W);
             return LED_DEFAULT_W;
         }
 
         if (category == ComponentCategory.SOCKET) {
-            // Twin / 2-gang → 2× average contribution
+            add(assumptions, AssumptionCodes.SOCKET_ASSUMED_180W);
             if (lower.contains("twin")
                     || lower.contains("2-gang")
                     || lower.contains("2 gang")
@@ -103,11 +116,9 @@ public final class LoadTables {
         }
 
         if (category == ComponentCategory.SWITCH) {
-            // Lighting switches carry no continuous load themselves
             return 0.0;
         }
 
-        // Non-load infrastructure
         if (category == ComponentCategory.CABLE
                 || category == ComponentCategory.CIRCUIT_BREAKER
                 || category == ComponentCategory.DISTRIBUTION_BOARD
@@ -119,7 +130,14 @@ public final class LoadTables {
             return 0.0;
         }
 
+        add(assumptions, AssumptionCodes.UNKNOWN_LOAD_100W);
         return UNKNOWN_DEFAULT_W;
+    }
+
+    private static void add(AssumptionCollector assumptions, String code) {
+        if (assumptions != null) {
+            assumptions.add(code);
+        }
     }
 
     private static boolean containsAcToken(String lower) {

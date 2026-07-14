@@ -4,6 +4,7 @@ import com.ghana.gwire.domain.calc.CircuitLoad;
 import com.ghana.gwire.domain.calc.DesignReport;
 import com.ghana.gwire.domain.calc.Severity;
 import com.ghana.gwire.domain.calc.ValidationIssue;
+import com.ghana.gwire.service.calc.CalcSessionState;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -17,20 +18,27 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * Shows Phase 4 calculation summary: totals, circuit schedule, validation issues.
+ * Shows calculation summary: session state, totals, circuit schedule, issues, assumptions.
  */
 public class CalcResultsPanel {
 
     private final VBox root;
+    private final Label stateBanner;
     private final Label summaryLabel;
     private final TableView<CircuitLoad> circuitTable;
     private final ObservableList<CircuitLoad> circuitRows = FXCollections.observableArrayList();
     private final ListView<ValidationIssue> issuesList;
     private final ObservableList<ValidationIssue> issueRows = FXCollections.observableArrayList();
+    private final ListView<String> assumptionsList;
+    private final ObservableList<String> assumptionRows = FXCollections.observableArrayList();
 
     public CalcResultsPanel() {
         Label title = new Label("Calculation & standards");
         title.getStyleClass().add("panel-title");
+
+        stateBanner = new Label("Not calculated");
+        stateBanner.getStyleClass().add("panel-subtitle");
+        stateBanner.setWrapText(true);
 
         summaryLabel = new Label("Run Tools → Recalculate Loads to generate a design report.");
         summaryLabel.getStyleClass().add("panel-body");
@@ -74,7 +82,14 @@ public class CalcResultsPanel {
             }
         });
         issuesList.setPlaceholder(new Label("No issues — run calculation first."));
+        issuesList.setPrefHeight(100);
         VBox.setVgrow(issuesList, Priority.ALWAYS);
+
+        Label assumptionsTitle = new Label("Assumptions used");
+        assumptionsTitle.getStyleClass().add("panel-subtitle");
+        assumptionsList = new ListView<>(assumptionRows);
+        assumptionsList.setPrefHeight(80);
+        assumptionsList.setPlaceholder(new Label("No assumptions yet."));
 
         Label disclaimer = new Label(
                 "Heuristics for preliminary design only. Have a CEWP verify before installation."
@@ -82,7 +97,8 @@ public class CalcResultsPanel {
         disclaimer.getStyleClass().add("panel-footer");
         disclaimer.setWrapText(true);
 
-        VBox content = new VBox(8, title, summaryLabel, circuitTable, issuesTitle, issuesList, disclaimer);
+        VBox content = new VBox(8, title, stateBanner, summaryLabel, circuitTable,
+                issuesTitle, issuesList, assumptionsTitle, assumptionsList, disclaimer);
         content.setPadding(new Insets(12));
         content.getStyleClass().add("panel-content");
         VBox.setVgrow(issuesList, Priority.ALWAYS);
@@ -97,22 +113,46 @@ public class CalcResultsPanel {
         return root;
     }
 
+    public void setSessionState(CalcSessionState state, DesignReport report) {
+        if (state == null) {
+            state = CalcSessionState.NONE;
+        }
+        String text = switch (state) {
+            case NONE -> "Not calculated";
+            case FRESH -> report != null && report.hasErrors()
+                    ? report.errorCount() + " error(s) — verify before install"
+                    : "Calculations current";
+            case DIRTY_CLEARED -> "Calculations outdated — recalculate";
+            case ERRORS_PRESENT -> {
+                int n = report == null ? 0 : report.errorCount();
+                yield n + " error(s) — verify before install";
+            }
+        };
+        stateBanner.setText(text);
+    }
+
     public void showReport(DesignReport report) {
         circuitRows.clear();
         issueRows.clear();
+        assumptionRows.clear();
         if (report == null) {
             summaryLabel.setText("No calculation report yet.");
+            setSessionState(CalcSessionState.NONE, null);
             return;
         }
+        setSessionState(report.hasErrors() ? CalcSessionState.ERRORS_PRESENT : CalcSessionState.FRESH, report);
+        assumptionRows.addAll(report.assumptions());
         summaryLabel.setText(String.format(
                 """
                 Project: %s
+                Standards: %s
                 Supply: %s
                 Connected: %.0f W · After diversity: %.0f W (×%.2f) · Design I: %.1f A
                 Circuits: %d · Max Vd: %.2f%% · Issues: %d error(s), %d warning(s)
-                Calculated: %s
+                Calculated: %s%s
                 """,
                 report.projectName(),
+                report.standardsEdition().isBlank() ? "—" : report.standardsEdition(),
                 report.supplyTypeSummary(),
                 report.totalConnectedLoadW(),
                 report.totalAfterDiversityW(),
@@ -122,7 +162,8 @@ public class CalcResultsPanel {
                 report.maxVoltageDropPercent(),
                 report.errorCount(),
                 report.warningCount(),
-                report.calculatedAt()
+                report.calculatedAt(),
+                report.calculatedAtExport() ? " (at export)" : ""
         ).trim());
         circuitRows.addAll(report.circuits());
         issueRows.addAll(report.issues());
@@ -131,6 +172,7 @@ public class CalcResultsPanel {
     public void clear() {
         showReport(null);
         summaryLabel.setText("Run Tools → Recalculate Loads to generate a design report.");
+        setSessionState(CalcSessionState.NONE, null);
     }
 
     private static TableColumn<CircuitLoad, String> col(String title, java.util.function.Function<CircuitLoad, String> fn) {

@@ -130,26 +130,37 @@ public final class DiversityCalculator {
      * @return overall after-diversity load in watts (after whole-installation factor)
      */
     public static double applyToCircuits(List<CircuitLoad> circuits, double supplyVoltageV) {
+        return applyToCircuits(circuits, supplyVoltageV, null);
+    }
+
+    public static double applyToCircuits(
+            List<CircuitLoad> circuits,
+            double supplyVoltageV,
+            AssumptionCollector assumptions
+    ) {
         Objects.requireNonNull(circuits, "circuits");
         double v = supplyVoltageV > 0 ? supplyVoltageV : 230.0;
         double sumAfter = 0;
 
         for (CircuitLoad c : circuits) {
             int outlets = c.kind() == CircuitKind.SOCKET ? Math.max(1, c.deviceIds().size()) : 0;
-            // Switches attached to lighting don't count as outlets
+            if (c.kind() == CircuitKind.LIGHTING && c.connectedLoadW() > 0) {
+                add(assumptions, AssumptionCodes.DIVERSITY_LIGHTING_1000_THEN_0_5);
+            }
+            if (c.kind() == CircuitKind.SOCKET && outlets > 1) {
+                add(assumptions, AssumptionCodes.DIVERSITY_SOCKET_MULTI_0_4);
+            }
+            if (c.kind() == CircuitKind.COOKER && c.connectedLoadW() > 0) {
+                add(assumptions, AssumptionCodes.DIVERSITY_COOKER_BASE_10A_PLUS_0_3);
+            }
             double afterW = afterDiversityLoadW(c.kind(), c.connectedLoadW(), outlets, v);
             double factor = c.connectedLoadW() > 0 ? afterW / c.connectedLoadW() : 1.0;
             c.setDiversityFactor(factor);
             c.setAfterDiversityLoadW(afterW);
             c.setAfterDiversityCurrentA(v > 0 ? afterW / v : 0);
-            // Design current for protective device / cable: use after-diversity for sockets/lighting,
-            // full connected for fixed high-load appliances is often preferred — Phase 4 uses after-diversity
-            // for demand totals; design current for sizing uses max(connected/V, after/V) for fixed loads
-            // and after-diversity current for diversified circuits.
             if (c.kind() == CircuitKind.COOKER
                     || c.kind() == CircuitKind.WATER_HEATER
                     || c.kind() == CircuitKind.AC_OR_SPECIAL) {
-                // Protective device sized to connected; diversity only for main demand total
                 double connectedA = c.connectedLoadW() / v;
                 c.setDesignCurrentA(connectedA);
             } else {
@@ -159,7 +170,16 @@ public final class DiversityCalculator {
         }
 
         double overallFactor = overallInstallationFactor(circuits.size());
+        if (overallFactor < 1.0) {
+            add(assumptions, AssumptionCodes.DIVERSITY_OVERALL_0_9_GT_3_CIRCUITS);
+        }
         return sumAfter * overallFactor;
+    }
+
+    private static void add(AssumptionCollector assumptions, String code) {
+        if (assumptions != null) {
+            assumptions.add(code);
+        }
     }
 
     /**
