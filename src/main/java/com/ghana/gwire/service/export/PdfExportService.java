@@ -177,7 +177,29 @@ public final class PdfExportService {
             cs.stroke();
 
             if (b.width() > 1 && b.height() > 1) {
-                float scale = Math.min(plotW / (float) b.width(), plotH / (float) b.height()) * 0.92f;
+                // Prefer standard architectural plot scales 1:50 or 1:100 (mm paper / mm plan)
+                // A4 content width ~500 pt ≈ 176 mm; pick scale so plan fits with margin.
+                float paperWidthMm = (plotW / 72f) * 25.4f;
+                float planW = (float) b.width();
+                int plotRatio = (planW / paperWidthMm) <= 55 ? 50 : 100;
+                // pts per plan-mm at 1:N: (72/25.4) / N
+                float scaleAtRatio = (72f / 25.4f) / plotRatio;
+                float fitScale = Math.min(plotW / (float) b.width(), plotH / (float) b.height()) * 0.90f;
+                float scale = Math.min(scaleAtRatio, fitScale);
+                // If fit forces smaller than 1:100, report as fitted
+                if (scale < scaleAtRatio * 0.98f) {
+                    plotRatio = Math.max(50, Math.round((72f / 25.4f) / scale));
+                    // nice round 50/100/200
+                    if (plotRatio <= 60) {
+                        plotRatio = 50;
+                    } else if (plotRatio <= 150) {
+                        plotRatio = 100;
+                    } else {
+                        plotRatio = 200;
+                    }
+                    scale = Math.min((72f / 25.4f) / plotRatio, fitScale);
+                }
+
                 float ox = plotX + (plotW - (float) b.width() * scale) / 2f;
                 float oy = plotY + (plotH - (float) b.height() * scale) / 2f;
 
@@ -222,6 +244,8 @@ public final class PdfExportService {
                     float ry = oy + (float) ((r.y() - b.minY + r.heightMm() * 0.5) * scale);
                     textAt(cs, fontRegular, 8, x, ry, safe(r.name()));
                 }
+
+                drawPlotScaleBar(cs, plotX + 8, plotY + 10, scale, plotRatio);
             } else {
                 textAt(cs, fontRegular, 11, plotX + 20, plotY + plotH / 2,
                         "No geometry to draw - add rooms or devices first.");
@@ -231,6 +255,49 @@ public final class PdfExportService {
                     "Legend: blue rectangles = rooms | dark lines = walls | green squares = devices");
             footer(cs, page, "GhanaWire AI - floor plan");
         }
+    }
+
+    /**
+     * Architectural scale bar for plot page (true length in plan mm at the drawn scale).
+     */
+    private void drawPlotScaleBar(PDPageContentStream cs, float x, float y, float ptsPerPlanMm, int ratio)
+            throws IOException {
+        // Prefer 5 m or 2 m bar
+        double barMm = 5000;
+        float barPts = (float) (barMm * ptsPerPlanMm);
+        if (barPts > 180) {
+            barMm = 2000;
+            barPts = (float) (barMm * ptsPerPlanMm);
+        }
+        if (barPts < 40) {
+            barMm = 10000;
+            barPts = (float) (barMm * ptsPerPlanMm);
+        }
+        cs.setStrokingColor(Color.BLACK);
+        cs.setNonStrokingColor(Color.BLACK);
+        cs.setLineWidth(1f);
+        cs.moveTo(x, y);
+        cs.lineTo(x + barPts, y);
+        cs.stroke();
+        cs.moveTo(x, y - 4);
+        cs.lineTo(x, y + 4);
+        cs.stroke();
+        cs.moveTo(x + barPts, y - 4);
+        cs.lineTo(x + barPts, y + 4);
+        cs.stroke();
+        int segs = 4;
+        for (int i = 0; i < segs; i++) {
+            float sx = x + i * (barPts / segs);
+            float w = barPts / segs;
+            if (i % 2 == 0) {
+                cs.addRect(sx, y, w, 3);
+                cs.fill();
+            }
+        }
+        String label = barMm >= 1000
+                ? String.format(Locale.ROOT, "1:%d  |  %.0f m", ratio, barMm / 1000.0)
+                : String.format(Locale.ROOT, "1:%d  |  %.0f mm", ratio, barMm);
+        textAt(cs, fontRegular, 8, x, y + 10, label);
     }
 
     private void writeSldPage(PDDocument doc, Project project, DesignReport report) throws IOException {

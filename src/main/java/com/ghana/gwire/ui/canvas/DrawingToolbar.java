@@ -73,6 +73,43 @@ public class DrawingToolbar {
         fit.setOnAction(e -> fitAction.run());
 
         root.getChildren().addAll(importBtn, clearBg, fit);
+
+        root.getChildren().add(new Separator(Orientation.VERTICAL));
+
+        ToggleButton orthoBtn = new ToggleButton("Ortho");
+        orthoBtn.setTooltip(new Tooltip("Constrain walls H/V (F8 or hold Shift)"));
+        orthoBtn.getStyleClass().add("tool-button");
+        ToggleButton osnapBtn = new ToggleButton("OSNAP");
+        osnapBtn.setTooltip(new Tooltip("Snap to wall endpoints (F3)"));
+        osnapBtn.getStyleClass().add("tool-button");
+        osnapBtn.setSelected(true);
+        this.orthoBtn = orthoBtn;
+        this.osnapBtn = osnapBtn;
+        root.getChildren().addAll(orthoBtn, osnapBtn);
+    }
+
+    private ToggleButton orthoBtn;
+    private ToggleButton osnapBtn;
+
+    /** Wire CAD toggles after canvas is created. */
+    public void bindCadSettings(CadSettings cad) {
+        if (cad == null || orthoBtn == null) {
+            return;
+        }
+        orthoBtn.setSelected(cad.isOrtho());
+        osnapBtn.setSelected(cad.isEndpointSnap());
+        orthoBtn.setOnAction(e -> cad.setOrtho(orthoBtn.isSelected()));
+        osnapBtn.setOnAction(e -> cad.setEndpointSnap(osnapBtn.isSelected()));
+        cad.orthoProperty().addListener((o, a, b) -> {
+            if (orthoBtn.isSelected() != b) {
+                orthoBtn.setSelected(b);
+            }
+        });
+        cad.endpointSnapProperty().addListener((o, a, b) -> {
+            if (osnapBtn.isSelected() != b) {
+                osnapBtn.setSelected(b);
+            }
+        });
     }
 
     public HBox getRoot() {
@@ -124,7 +161,7 @@ public class DrawingToolbar {
             case SELECT -> "Select elements. Drag empty space to pan the whole plan; drag a symbol to move it. "
                     + "Space/middle/right-drag also pans. Two-finger scroll pans; Ctrl+scroll zooms.";
             case PAN -> "Pan the view — walls, rooms and devices move together (also Space+drag, middle or right mouse)";
-            case WALL -> "Draw wall: click start, click end";
+            case WALL -> "Draw wall: click start, click end. Ortho F8/Shift · Endpoint OSNAP F3";
             case ROOM -> "Draw room: drag a rectangle";
             case DOOR -> "Place door on a wall";
             case WINDOW -> "Place window on a wall";

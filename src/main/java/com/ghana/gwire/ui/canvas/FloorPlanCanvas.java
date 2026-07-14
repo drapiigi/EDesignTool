@@ -11,6 +11,7 @@ import com.ghana.gwire.domain.floorplan.Wall;
 import com.ghana.gwire.domain.floorplan.WiringRoute;
 import com.ghana.gwire.domain.geometry.Segment2;
 import com.ghana.gwire.domain.geometry.Vec2;
+import com.ghana.gwire.domain.project.Project;
 import com.ghana.gwire.db.ComponentLibraryService;
 import com.ghana.gwire.db.LibraryBootstrap;
 import com.ghana.gwire.service.history.FloorPlanHistory;
@@ -54,15 +55,22 @@ public class FloorPlanCanvas {
     private final ObjectProperty<DrawTool> tool = new SimpleObjectProperty<>(DrawTool.SELECT);
     private final SelectionModel selection = new SelectionModel();
     private final FloorPlanHistory history;
+    private final CadSettings cadSettings = new CadSettings();
     private final Map<String, Image> rasterCache = new HashMap<>();
 
     private FloorPlan floorPlan = new FloorPlan();
+    private Project project;
+    private String activeStoreyId;
     private Consumer<String> statusSink = s -> {
     };
     private Runnable selectionListener = () -> {
     };
     private Runnable modelChangeListener = () -> {
     };
+    /** Endpoint OSNAP hover indicator (world mm). */
+    private Vec2 snapMarker;
+    /** Shift held → temporary ortho for wall tool. */
+    private boolean shiftOrtho;
 
     /**
      * Pixels per millimetre (view zoom).
@@ -125,6 +133,17 @@ public class FloorPlanCanvas {
         canvas.heightProperty().bind(root.heightProperty());
         canvas.widthProperty().addListener((o, a, b) -> redraw());
         canvas.heightProperty().addListener((o, a, b) -> redraw());
+
+        cadSettings.orthoProperty().addListener((o, a, b) -> {
+            status("Ortho " + (b ? "ON (F8)" : "OFF (F8)"));
+            redraw();
+        });
+        cadSettings.endpointSnapProperty().addListener((o, a, b) -> {
+            status("Endpoint OSNAP " + (b ? "ON" : "OFF"));
+            redraw();
+        });
+        cadSettings.showArchitectureProperty().addListener((o, a, b) -> redraw());
+        cadSettings.showElectricalProperty().addListener((o, a, b) -> redraw());
 
         canvas.addEventHandler(MouseEvent.MOUSE_PRESSED, this::onPress);
         canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED, this::onDrag);
@@ -202,8 +221,8 @@ public class FloorPlanCanvas {
      */
     public PlacedDevice placeComponentAt(ElectricalComponent component, Vec2 world) {
         Objects.requireNonNull(component, "component");
-        Vec2 pos = floorPlan.snap(Objects.requireNonNull(world, "world"));
-        history.push(floorPlan);
+        Vec2 pos = constrainPoint(Objects.requireNonNull(world, "world"), null);
+        pushHistory();
         PlacedDevice device = new PlacedDevice(component.id(), component.symbolKey(), pos.x(), pos.y());
         device.setNameOverride(component.name());
         floorPlan.hitRoom(pos).ifPresent(r -> device.setRoomId(r.id()));
@@ -226,6 +245,23 @@ public class FloorPlanCanvas {
 
     public SelectionModel getSelection() {
         return selection;
+    }
+
+    public CadSettings getCadSettings() {
+        return cadSettings;
+    }
+
+    public void bindProject(Project project, String storeyId) {
+        this.project = project;
+        this.activeStoreyId = storeyId;
+    }
+
+    public void setActiveStoreyId(String storeyId) {
+        this.activeStoreyId = storeyId;
+    }
+
+    private void pushHistory() {
+        history.push(activeStoreyId, floorPlan);
     }
 
     public FloorPlan getFloorPlan() {
@@ -340,20 +376,22 @@ public class FloorPlanCanvas {
     }
 
     public void undo() {
-        history.undo(floorPlan);
+        history.undo(project, floorPlan);
         selection.clear();
         cancelInProgress();
         redraw();
         fireSelection();
+        fireModelChanged();
         status("Undo");
     }
 
     public void redo() {
-        history.redo(floorPlan);
+        history.redo(project, floorPlan);
         selection.clear();
         cancelInProgress();
         redraw();
         fireSelection();
+        fireModelChanged();
         status("Redo");
     }
 
@@ -361,7 +399,7 @@ public class FloorPlanCanvas {
         if (selection.isEmpty()) {
             return;
         }
-        history.push(floorPlan);
+        pushHistory();
         switch (selection.kind()) {
             case WALL -> floorPlan.removeWallById(selection.wall().id());
             case ROOM -> floorPlan.removeRoomById(selection.room().id());
@@ -397,12 +435,17 @@ public class FloorPlanCanvas {
 
         drawGrid(g, w, h);
         drawBackground(g);
-        drawRooms(g);
-        drawWalls(g);
-        drawOpenings(g);
-        drawWiringRoutes(g);
-        drawDevices(g);
+        if (cadSettings.isShowArchitecture()) {
+            drawRooms(g);
+            drawWalls(g);
+            drawOpenings(g);
+        }
+        if (cadSettings.isShowElectrical()) {
+            drawWiringRoutes(g);
+            drawDevices(g);
+        }
         drawPreview(g);
+        drawSnapMarker(g);
         if (dropHighlight) {
             CadStyle.applyCadStroke(g, 2.5);
             g.setStroke(CadStyle.ACCENT);
@@ -470,7 +513,9 @@ public class FloorPlanCanvas {
         canvas.requestFocus();
         pressScreenX = e.getX();
         pressScreenY = e.getY();
-        Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
+        shiftOrtho = e.isShiftDown();
+        Vec2 raw = screenToWorld(e.getX(), e.getY());
+        Vec2 world = constrainPoint(raw, wallStart);
 
         // View pan: middle mouse, right mouse, Space+drag, or Pan tool — moves whole plan together
         if (e.getButton() == MouseButton.MIDDLE
@@ -492,11 +537,13 @@ public class FloorPlanCanvas {
                 if (wallStart == null) {
                     wallStart = world;
                     previewEnd = world;
-                    status("Wall: click end point (Esc cancel)");
+                    status("Wall: click end point · Ortho " + (isOrthoActive() ? "ON" : "OFF")
+                            + " · OSNAP " + (cadSettings.isEndpointSnap() ? "ON" : "OFF"));
                 } else {
                     commitWall(wallStart, world);
                     wallStart = null;
                     previewEnd = null;
+                    snapMarker = null;
                 }
             }
             case ROOM -> {
@@ -535,12 +582,13 @@ public class FloorPlanCanvas {
 
         // Live move placed device (does not change pan — components stay fixed relative to plan)
         if (movingDevice != null) {
-            Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
+            shiftOrtho = e.isShiftDown();
+            Vec2 world = constrainPoint(screenToWorld(e.getX(), e.getY()), null);
             double nx = world.x() - moveGrabOffsetX;
             double ny = world.y() - moveGrabOffsetY;
             Vec2 snapped = floorPlan.snap(new Vec2(nx, ny));
             if (!moveHistoryRecorded) {
-                history.push(floorPlan);
+                pushHistory();
                 moveHistoryRecorded = true;
             }
             movingDevice.setPosition(snapped.x(), snapped.y());
@@ -550,13 +598,14 @@ public class FloorPlanCanvas {
             );
             selection.selectDevice(movingDevice);
             fireSelection();
-            status("Moving %s → (%.0f, %.0f) mm"
+            status("Moving %s -> (%.0f, %.0f) mm"
                     .formatted(movingDevice.displayName(), snapped.x(), snapped.y()));
             redraw();
             return;
         }
 
-        Vec2 world = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
+        shiftOrtho = e.isShiftDown();
+        Vec2 world = constrainPoint(screenToWorld(e.getX(), e.getY()), wallStart);
         if (getTool() == DrawTool.WALL && wallStart != null) {
             previewEnd = world;
             redraw();
@@ -598,8 +647,17 @@ public class FloorPlanCanvas {
     }
 
     private void onMove(MouseEvent e) {
-        if (getTool() == DrawTool.WALL && wallStart != null) {
-            previewEnd = floorPlan.snap(screenToWorld(e.getX(), e.getY()));
+        shiftOrtho = e.isShiftDown();
+        Vec2 raw = screenToWorld(e.getX(), e.getY());
+        if (getTool() == DrawTool.WALL) {
+            Vec2 world = constrainPoint(raw, wallStart);
+            if (wallStart != null) {
+                previewEnd = world;
+            }
+            redraw();
+        } else if (cadSettings.isEndpointSnap() && getTool() != DrawTool.PAN) {
+            // Update snap marker when hovering near endpoints
+            constrainPoint(raw, null);
             redraw();
         }
     }
@@ -691,6 +749,21 @@ public class FloorPlanCanvas {
     }
 
     private void onKey(KeyEvent e) {
+        if (e.getCode() == KeyCode.SHIFT) {
+            shiftOrtho = true;
+            e.consume();
+            return;
+        }
+        if (e.getCode() == KeyCode.F8) {
+            cadSettings.toggleOrtho();
+            e.consume();
+            return;
+        }
+        if (e.getCode() == KeyCode.F3) {
+            cadSettings.setEndpointSnap(!cadSettings.isEndpointSnap());
+            e.consume();
+            return;
+        }
         if (e.getCode() == KeyCode.SPACE && !e.isControlDown() && !e.isAltDown() && !e.isMetaDown()) {
             if (!spacePan) {
                 spacePan = true;
@@ -728,6 +801,11 @@ public class FloorPlanCanvas {
     }
 
     private void onKeyReleased(KeyEvent e) {
+        if (e.getCode() == KeyCode.SHIFT) {
+            shiftOrtho = false;
+            e.consume();
+            return;
+        }
         if (e.getCode() == KeyCode.SPACE) {
             spacePan = false;
             if (!panning) {
@@ -735,6 +813,82 @@ public class FloorPlanCanvas {
             }
             e.consume();
         }
+    }
+
+    private boolean isOrthoActive() {
+        return cadSettings.isOrtho() || shiftOrtho;
+    }
+
+    /**
+     * Grid snap + optional endpoint OSNAP + optional ortho constraint relative to {@code anchor}.
+     */
+    private Vec2 constrainPoint(Vec2 world, Vec2 anchor) {
+        Vec2 p = floorPlan.snap(world);
+        snapMarker = null;
+        if (cadSettings.isEndpointSnap()) {
+            double tolMm = pickTolMm(12);
+            Vec2 ep = nearestEndpoint(p, tolMm);
+            if (ep != null) {
+                p = ep;
+                snapMarker = ep;
+            }
+        }
+        if (anchor != null && isOrthoActive()) {
+            double dx = Math.abs(p.x() - anchor.x());
+            double dy = Math.abs(p.y() - anchor.y());
+            if (dx >= dy) {
+                p = new Vec2(p.x(), anchor.y());
+            } else {
+                p = new Vec2(anchor.x(), p.y());
+            }
+            p = floorPlan.snap(p);
+            // re-apply endpoint snap after ortho if still close
+            if (cadSettings.isEndpointSnap()) {
+                Vec2 ep = nearestEndpoint(p, pickTolMm(10));
+                if (ep != null) {
+                    // Prefer ortho wall if endpoint is almost on the ortho line
+                    if (Math.abs(ep.y() - anchor.y()) < pickTolMm(6)
+                            || Math.abs(ep.x() - anchor.x()) < pickTolMm(6)) {
+                        if (Math.abs(ep.y() - anchor.y()) <= Math.abs(ep.x() - anchor.x())) {
+                            p = new Vec2(ep.x(), anchor.y());
+                        } else {
+                            p = new Vec2(anchor.x(), ep.y());
+                        }
+                        snapMarker = ep;
+                    }
+                }
+            }
+        }
+        return p;
+    }
+
+    private Vec2 nearestEndpoint(Vec2 world, double tolMm) {
+        Vec2 best = null;
+        double bestD = tolMm;
+        for (Wall w : floorPlan.walls()) {
+            for (Vec2 ep : new Vec2[]{w.start(), w.end()}) {
+                double d = world.distanceTo(ep);
+                if (d <= bestD) {
+                    bestD = d;
+                    best = ep;
+                }
+            }
+        }
+        return best;
+    }
+
+    private void drawSnapMarker(GraphicsContext g) {
+        if (snapMarker == null || !cadSettings.isEndpointSnap()) {
+            return;
+        }
+        double sx = worldToScreenX(snapMarker.x());
+        double sy = worldToScreenY(snapMarker.y());
+        CadStyle.applySharpStroke(g, 1.4);
+        g.setStroke(CadStyle.ACCENT);
+        double r = 6;
+        g.strokeRect(sx - r, sy - r, r * 2, r * 2);
+        g.strokeLine(sx - r - 2, sy, sx + r + 2, sy);
+        g.strokeLine(sx, sy - r - 2, sx, sy + r + 2);
     }
 
     /**
@@ -902,7 +1056,7 @@ public class FloorPlanCanvas {
             status("Wall too short — ignored");
             return;
         }
-        history.push(floorPlan);
+        pushHistory();
         Wall wall = new Wall(a, b);
         floorPlan.addWall(wall);
         selection.selectWall(wall);
@@ -920,7 +1074,7 @@ public class FloorPlanCanvas {
             status("Room too small — drag a larger rectangle");
             return;
         }
-        history.push(floorPlan);
+        pushHistory();
         int n = floorPlan.rooms().size() + 1;
         Room room = new Room("Room " + n, x, y, w, h);
         floorPlan.addRoom(room);
@@ -939,7 +1093,7 @@ public class FloorPlanCanvas {
         }
         Wall wall = wallOpt.get();
         double t = Segment2.closestT(world, wall.start(), wall.end());
-        history.push(floorPlan);
+        pushHistory();
         Opening opening = new Opening(wall.id(), type, t, widthMm);
         floorPlan.addOpening(opening);
         selection.selectOpening(opening);
@@ -1439,10 +1593,11 @@ public class FloorPlanCanvas {
         String place = movingDevice != null
                 ? " · move " + movingDevice.displayName()
                 : (dropHighlight ? " · drop to place" : "");
-        String status = "1:%d  ·  grid %.0f mm  ·  snap %s  ·  %d devices%s".formatted(
+        String status = "1:%d  |  grid %.0f mm  |  OSNAP %s  |  Ortho %s  |  %d devices%s".formatted(
                 drawingScale,
                 floorPlan.gridMm(),
-                floorPlan.isSnapToGrid() ? "ON" : "OFF",
+                cadSettings.isEndpointSnap() ? "ON" : "off",
+                isOrthoActive() ? "ON" : "off",
                 floorPlan.devices().size(),
                 place);
 

@@ -55,6 +55,7 @@ public class FloorPlanWorkspace {
         toolbar.setImportAction(this::importFloorPlan);
         toolbar.setClearBgAction(this::clearBackground);
         toolbar.setFitAction(canvas::fitToWindow);
+        toolbar.bindCadSettings(canvas.getCadSettings());
 
         storeyBar.setOnStoreyChanged(this::switchStorey);
         storeyBar.setOnStructureChanged(() -> {
@@ -124,10 +125,13 @@ public class FloorPlanWorkspace {
     public void bindProject(Project project) {
         this.project = project;
         storeyBar.bindProject(project);
+        history.clear();
         if (project == null) {
+            canvas.bindProject(null, null);
             canvas.setFloorPlan(new FloorPlan());
             canvas.clearRasterCache();
         } else {
+            canvas.bindProject(project, project.activeStorey().id());
             canvas.setFloorPlan(project.floorPlan());
             reloadBackgroundRaster();
         }
@@ -145,9 +149,8 @@ public class FloorPlanWorkspace {
             return;
         }
         project.setActiveStoreyIndex(clamped);
-        // Phase 10: undo stack is per active floor-plan only — clear so undo cannot
-        // apply another storey's snapshot. Project-scoped commands land in Phase 13a.
-        history.clear();
+        // Phase 13a: keep command stack; each entry has storeyId so undo is storey-safe
+        canvas.setActiveStoreyId(project.activeStorey().id());
         canvas.setFloorPlan(project.floorPlan());
         reloadBackgroundRaster();
         canvas.fitToWindow();
@@ -209,7 +212,7 @@ public class FloorPlanWorkspace {
         }
         try {
             ImportedRaster raster = importService.importFile(file.toPath());
-            history.push(project.floorPlan());
+            history.push(project.activeStorey().id(), project.floorPlan());
             BackgroundImage bg = new BackgroundImage(
                     raster.sourcePath(),
                     raster.label(),
@@ -234,7 +237,7 @@ public class FloorPlanWorkspace {
             statusSink.accept("No background to clear");
             return;
         }
-        history.push(project.floorPlan());
+        history.push(project.activeStorey().id(), project.floorPlan());
         project.floorPlan().clearBackground();
         project.touch();
         canvas.redraw();

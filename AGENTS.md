@@ -63,7 +63,7 @@
 | 10 | Production hardening: atomic save, autosave/recovery, SecretStore, exception handler, smoke tests | **Done** |
 | 11 | Calculation integrity: golden tests, assumption flags, calc state machine, export gates | **Done** |
 | 12 | Distribution + liability UX → **beta 0.9** (installers, disclaimers, standards stamp) | **Done** |
-| 13a | CAD minimum for GA (OSNAP/ortho, layers, command undo, basic plot) | **Planned** |
+| 13a | CAD minimum for GA (OSNAP/ortho, layers, command undo, basic plot) | **Done** |
 | 13b | CAD stretch (DXF, full dims, grips) | **Stretch** |
 | 14 | Electrical model depth (circuits, CU board, cable schedule, SLD model) | **Planned** |
 | 15 | Product maturity (scale cal, templates, price book, AI diffs, manuals) | **Planned** |
@@ -233,9 +233,17 @@
 - PDF/About standards stamp with app version
 - CI example: `docs/ci/package.yml.example` (copy to `.github/workflows/` when token has workflow scope)
 
+### Done (Phase 13a)
+
+- Storey-aware undo/redo (`FloorPlanHistory` entries carry `storeyId`)
+- Ortho (F8 / Shift / toolbar) and endpoint OSNAP (F3 / toolbar) for wall drawing
+- Layers: Architecture vs Electrical (View menu)
+- PDF plan page plot scale bar (1:50 / 1:100)
+- HUD shows OSNAP/Ortho state
+
 ### Open tasks / next program
 
-- **Next implement:** Phase 13a — CAD minimum (ortho, OSNAP, layers, command undo)
+- **Next implement:** Phase 14 — electrical model depth (or 13b CAD stretch)
 - Parallel: CEWP peer review of load tables; code signing for production
 - Explicit non-goals until post-1.0: full AutoCAD clone, 3D BIM, industrial plant design, cloud multi-user
 

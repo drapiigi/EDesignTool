@@ -1208,6 +1208,24 @@ public class MainWindow {
         refreshSelection();
     }
 
+    public void setShowArchitectureLayer(boolean show) {
+        workspace.getCanvas().getCadSettings().setShowArchitecture(show);
+        workspace.getCanvas().redraw();
+    }
+
+    public void setShowElectricalLayer(boolean show) {
+        workspace.getCanvas().getCadSettings().setShowElectrical(show);
+        workspace.getCanvas().redraw();
+    }
+
+    public void setOrthoMode(boolean on) {
+        workspace.getCanvas().getCadSettings().setOrtho(on);
+    }
+
+    public void setEndpointSnap(boolean on) {
+        workspace.getCanvas().getCadSettings().setEndpointSnap(on);
+    }
+
     public void deleteSelection() {
         workspace.getCanvas().deleteSelection();
         onModelChanged();

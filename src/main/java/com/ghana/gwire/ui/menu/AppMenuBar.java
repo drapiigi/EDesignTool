@@ -62,9 +62,28 @@ public class AppMenuBar {
         CheckMenuItem showWiring = new CheckMenuItem("Show _wiring routes");
         showWiring.setSelected(true);
         showWiring.setOnAction(e -> window.setShowWiringRoutes(showWiring.isSelected()));
+
+        CheckMenuItem showArch = new CheckMenuItem("Layer: _Architecture");
+        showArch.setSelected(true);
+        showArch.setOnAction(e -> window.setShowArchitectureLayer(showArch.isSelected()));
+        CheckMenuItem showElec = new CheckMenuItem("Layer: _Electrical");
+        showElec.setSelected(true);
+        showElec.setOnAction(e -> window.setShowElectricalLayer(showElec.isSelected()));
+        CheckMenuItem ortho = new CheckMenuItem("_Ortho mode (F8)");
+        ortho.setSelected(false);
+        ortho.setOnAction(e -> window.setOrthoMode(ortho.isSelected()));
+        CheckMenuItem osnap = new CheckMenuItem("Endpoint _OSNAP (F3)");
+        osnap.setSelected(true);
+        osnap.setOnAction(e -> window.setEndpointSnap(osnap.isSelected()));
+
         view.getItems().addAll(
                 darkMode,
                 showWiring,
+                new SeparatorMenuItem(),
+                showArch,
+                showElec,
+                ortho,
+                osnap,
                 new SeparatorMenuItem(),
                 item("Zoom _In", KeyCode.EQUALS, true, window::zoomIn),
                 item("Zoom _Out", KeyCode.MINUS, true, window::zoomOut),

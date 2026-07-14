@@ -12,7 +12,7 @@ Engineers and CEWPs can open a floor plan, auto-generate a design with AI, edit 
 |---|---|
 | **Repo** | https://github.com/drapiigi/EDesignTool |
 | **Stack** | Java 21+, JavaFX 23+, Maven, H2, PDFBox, Apache POI |
-| **Status** | **Beta 0.9.0** (Phase 12) · next: Phase 13a CAD minimum |
+| **Status** | **Beta 0.9.0** + Phase 13a CAD (ortho/OSNAP/layers) · next: Phase 14 electrical model |
 
 See **[AGENTS.md](AGENTS.md)** for architecture and agent workflow.  
 See **[docs/PACKAGING.md](docs/PACKAGING.md)** for installers and fat-jar notes.
@@ -121,7 +121,8 @@ Details: [docs/PACKAGING.md](docs/PACKAGING.md).
 10. **Phase 10** — Atomic save, autosave/recovery, secrets store, exception handler, `.gwirez` package ✅  
 11. **Phase 11** — Assumption flags, golden calcs, export gates, FORMULAS.md ✅  
 12. **Phase 12** — Beta 0.9: installers, first-run disclaimer, update check, LICENSE ✅  
-13–16. **Planned** — CAD / electrical model / GA — see **[docs/ROADMAP-PRODUCTION.md](docs/ROADMAP-PRODUCTION.md)**  
+13a. **Phase 13a** — Ortho, endpoint OSNAP, layers, storey-safe undo, PDF plot scale ✅  
+13b–16. **Planned** — CAD stretch / electrical model / GA — see **[docs/ROADMAP-PRODUCTION.md](docs/ROADMAP-PRODUCTION.md)**  
 
 ---
 
